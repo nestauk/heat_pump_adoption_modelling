@@ -1,0 +1,2 @@
+CLEANSED_EPC_DATA_PATH: "/inputs/EPC_Records__cleansed_and_deduplicated.csv"
+CLEANSED_EPC_DATA_ZIP_PATH: "/inputs/EPC_Records__cleansed_and_deduplicated.csv.zip"
