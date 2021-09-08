@@ -1,44 +1,97 @@
+# File: getters/epc_data.py
+"""
+Extracting and loading the EPC data.
+"""
+
+# ---------------------------------------------------------------------------------
+
 import pandas as pd
 import numpy as np
 from zipfile import ZipFile
 
-from heat_pump_adoption_modelling import PROJECT_DIR
+from heat_pump_adoption_modelling import PROJECT_DIR, get_yaml_config, Path
 
-# if this doesn't work, unzip in command line...
-# it's too big to unzip through Finder
-def extract_epc():
-    with ZipFile(PROJECT_DIR / "inputs/data/epc.zip", "r") as zip:
-        print("Files to be extracted:")
-        zip.printdir()
-        print("Extracting files...")
-        zip.extractall(path=PROJECT_DIR / "inputs/data")
+# ---------------------------------------------------------------------------------
+
+# Load config file
+config = get_yaml_config(
+    Path(str(PROJECT_DIR) + "/heat_pump_adoption_modelling/config/base.yaml")
+)
 
 
-def read_epc():
-    """Reads EPC data from CSV. Takes a while!
-    Currently it seems to just hang...
-    """
-    epc = pd.read_csv(
-        PROJECT_DIR / "inputs/data/epc.csv",
-        engine="python",  # slower, but errors if default engine (C) is used
-        on_bad_lines="warn",
-        #    skiprows=5674127,
+def extract_epc_data():
+    """Extract EPC data from zip file."""
+
+    # Filename
+    ZIP_FILE_PATH = str(PROJECT_DIR) + config["CLEANSED_EPC_DATA_ZIP_PATH"]
+
+    # Unzip EPC data
+    with ZipFile(ZIP_FILE_PATH, "r") as zip:
+
+        print("Extracting...\n{}".format(zip.filename))
+        zip.extractall(str(PROJECT_DIR) + "/inputs/")
+        print("Done!")
+
+
+def load_cleansed_EPC():
+    """Load the Cleansed EPC dataset.
+
+    Return
+    ----------
+    cleansed_epc : pandas.DataFrame
+        Cleansed EPC datast as dataframe."""
+
+    print("Loading cleansed EPC data... This will take a moment.")
+    cleansed_epc = pd.read_csv(
+        str(PROJECT_DIR) + config["CLEANSED_EPC_DATA_PATH"],
+        low_memory=False
+        # CW: engine="python",  # slower, but errors if default engine (C) is used
+        # on_bad_lines="warn",
+        #    skiprows=5674127,  # JS: I don't think we need any of this...
     )
-    epc = epc.drop(columns="Unnamed: 0")
-    print("CSV read! Adding heat pump column...")
-    epc["HEAT_PUMP"] = epc.FINAL_HEATING_SYSTEM == "Heat pump"
+
+    # Drop first column
+    cleansed_epc = cleansed_epc.drop(columns="Unnamed: 0")
+
+    # Add HP feature
+    cleansed_epc["HEAT_PUMP"] = cleansed_epc.FINAL_HEATING_SYSTEM == "Heat pump"
     print("Done!")
 
-    return epc
+    return cleansed_epc
 
 
-def get_epc_sample(full_data, sample_size):
-    """Takes a subset of the full EPC dataset to make exploring easier."""
-    rand_ints = np.random.choice(len(full_data), size=sample_size)
-    sample = epc.iloc[rand_ints]
+def get_epc_sample(full_df, sample_size):
+    """Randomly sample a subset of the full data.
+    ----------
+    full_df : pandas.DataFrame
+        Full dataframe from which to extract a subset.
 
-    return sample
+    sample_size: int
+        Size of subset / number of samples.
+
+    Return
+    ----------
+    sample_df : pandas.DataFrame
+        Randomly sampled subset of full dataframe."""
+
+    rand_ints = np.random.choice(len(full_df), size=sample_size)
+    sample_df = full_df.iloc[rand_ints]
+
+    return sample_df
 
 
+"""
 def vc(variable):
-    return sample[variable].value_counts()
+    return sample[variable].value_counts()  # JS: Do we really need that?
+"""
+
+
+def main():
+    """Main function for testing."""
+    extract_epc_data()
+    load_cleansed_EPC()
+
+
+if __name__ == "__main__":
+    # Execute only if run as a script
+    main()
