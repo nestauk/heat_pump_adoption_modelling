@@ -1,10 +1,9 @@
 # File: getters/epc_data.py
-"""
-Extracting and loading the EPC data.
-"""
+"""Extracting and loading the EPC data."""
 
 # ---------------------------------------------------------------------------------
 
+import os
 import pandas as pd
 import numpy as np
 from zipfile import ZipFile
@@ -19,36 +18,56 @@ config = get_yaml_config(
 )
 
 
-def extract_epc_data():
-    """Extract EPC data from zip file."""
+def extract_data(file_path):
+    """Extract data from zip file.
 
-    # Filename
-    ZIP_FILE_PATH = str(PROJECT_DIR) + config["CLEANSED_EPC_DATA_ZIP_PATH"]
+    Parameters
+    ----------
+    file_path : str
+        Path to the file to unzip.
 
-    # Unzip EPC data
-    with ZipFile(ZIP_FILE_PATH, "r") as zip:
+    Return: None"""
+
+    # Check whether file exists
+    if not Path(file_path).is_file():
+        raise IOError("The file '{}' does not exist.".format(file_path))
+
+    # Get directory
+    zip_dir = os.path.dirname(file_path) + "/"
+
+    # Unzip the data
+    with ZipFile(file_path, "r") as zip:
 
         print("Extracting...\n{}".format(zip.filename))
-        zip.extractall(str(PROJECT_DIR) + "/inputs/")
+        zip.extractall(zip_dir)
         print("Done!")
 
 
-def load_cleansed_EPC():
-    """Load the Cleansed EPC dataset.
+def load_cleansed_EPC(remove_duplicates=True):
+    """Load the cleansed EPC dataset (provided by EST)
+    with the option of excluding/including duplicates.
+
+    Parameters
+    ----------
+    remove_duplicates : bool, default=True.
+        Whether or not to remove duplicates.
 
     Return
     ----------
     cleansed_epc : pandas.DataFrame
         Cleansed EPC datast as dataframe."""
 
+    if remove_duplicates:
+        file_path = str(PROJECT_DIR) + config["EST_CLEANSED_EPC_DATA_DEDUPL_PATH"]
+    else:
+        file_path = str(PROJECT_DIR) + config["EST_CLEANSED_EPC_DATA_PATH"]
+
+    # If file does not exist (probably just not unzipped), unzip the data
+    if not Path(file_path).is_file():
+        extract_data(file_path + ".zip")
+
     print("Loading cleansed EPC data... This will take a moment.")
-    cleansed_epc = pd.read_csv(
-        str(PROJECT_DIR) + config["CLEANSED_EPC_DATA_PATH"],
-        low_memory=False
-        # CW: engine="python",  # slower, but errors if default engine (C) is used
-        # on_bad_lines="warn",
-        #    skiprows=5674127,  # JS: I don't think we need any of this...
-    )
+    cleansed_epc = pd.read_csv(file_path, low_memory=False)
 
     # Drop first column
     cleansed_epc = cleansed_epc.drop(columns="Unnamed: 0")
@@ -60,8 +79,52 @@ def load_cleansed_EPC():
     return cleansed_epc
 
 
+def load_GB_epc_data(version="preprocessed_dedupl"):
+    """Load the EPC dataset including England, Wales and Scotland.
+    Select one of the following versions:
+
+        - raw:
+        EPC data merged for all countries but otherwise not altered
+
+        - preprocessed:
+        Partially cleaned and with additional features
+
+        - preprocessed_dedupl:
+        Same as 'preprocessed' but without duplicates
+
+    Parameters
+    ----------
+    version : str, {'raw', 'preprocessed', 'preprocessed_dedupl'}, default='preprocessed_dedupl'
+        The version of the EPC data to load.
+
+    Return
+    ----------
+    epc_df : pandas.DataFrame
+        EPC data in the given version."""
+
+    version_path_dict = {
+        "raw": "RAW_EPC_DATA_PATH",
+        "preprocessed_dedupl": "PREPROC_EPC_DATA_PATH",
+        "preprocessed": "PREPROC_EPC_DATA_DEDUPL_PATH",
+    }
+
+    # Get the respective file path for version
+    file_path = str(PROJECT_DIR) + config[version_path_dict[version]]
+
+    # If file does not exist (likely just not unzipped), unzip the data
+    if not Path(file_path).is_file():
+        extract_data(file_path=".zip")
+
+    # Load  data
+    epc_df = pd.read_csv(file_path, low_memory=False)
+
+    return epc_df
+
+
 def get_epc_sample(full_df, sample_size):
     """Randomly sample a subset of the full data.
+
+    Parameters
     ----------
     full_df : pandas.DataFrame
         Full dataframe from which to extract a subset.
@@ -80,16 +143,8 @@ def get_epc_sample(full_df, sample_size):
     return sample_df
 
 
-"""
-def vc(variable):
-    return sample[variable].value_counts()  # JS: Do we really need that?
-"""
-
-
 def main():
     """Main function for testing."""
-    extract_epc_data()
-    load_cleansed_EPC()
 
 
 if __name__ == "__main__":
