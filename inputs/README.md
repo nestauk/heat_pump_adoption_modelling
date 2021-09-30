@@ -86,7 +86,7 @@ In `inputs/EPC_data/Preprocessed_data/Q2_2021` you can find three different vers
 
 **Since the preprocessing depends on data cleaning and feature engineering algorithms that may change over time, the data in this folder should be considered a snapshot of the current status in September 2021. Ideally, you should always work with the output of the most recent preprocessing version. **
 
-You can generate the preprocessed datasets from the raw data by executing the script in _preprocess_data.py_ in `/heat_pump_adoption_modelling/pipeline/preprocessing`.
+You can generate the preprocessed datasets from the raw data by executing the script in _preprocess_epc_data.py_ in `/heat_pump_adoption_modelling/pipeline/preprocessing`.
 
 It will generate three versions of the data in `/outputs/EPC_data/Preprocessed_data/Q[quarter]_[YEAR]`. They will be written out as regular CSV-files.
 
