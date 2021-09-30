@@ -14,11 +14,11 @@ In the `inputs/EPC_data` folder you will find the following versions of the EPC 
 
 ### Raw data
 
-In `inputs/EPC_data/Raw_data` you can find the raw EPC data. The current version holds the data up to the second quarter of 2021.
+In /`inputs/EPC_data/Raw_data` you can find the raw EPC data. The current version holds the data up to the second quarter of 2021.
 
-The data for England and Wales can be found in `inputs/EPC*data/Raw_data/England_Wales in a zipped file named \_all-domestic-certificates.zip*.
+The data for England and Wales can be found in `/inputs/EPC_data/Raw_data/England_Wales` in a zipped file named _all-domestic-certificates.zip_.
 
-The data for Scotland can be found in `inputs/EPC*data/Raw_data/Scotland in a zipped file named \_D_EPC_data.csv*.
+The data for Scotland can be found in `inputs/EPC*data/Raw_data/Scotland` in a zipped file named _D_EPC_data.csv_.
 
 ### Cleansed EPC (EST)
 
@@ -90,17 +90,17 @@ You can generate the preprocessed datasets from the raw data by executing the sc
 
 It will generate three versions of the data in `/outputs/EPC_data/Preprocessed_data/Q[quarter]_[YEAR]`. They will be written out as regular CSV-files.
 
-- _EPC_GB_raw.csv_ : original data
+- EPC_GB_raw.csv : original data
+- EPC_GB_preprocessed.csv: cleaned and added features, includes duplicates
+- EPC_GB_preprocessed_and_deduplicated.csv: cleaned, added features and without duplicates
 
-- _EPC_GB_preprocessed.csv_: cleaned and added features, includes duplicates
-
-- _EPC_GB_preprocessed_and_deduplicated.csv_: cleaned, added features and without duplicates
+---
 
 _EPC_GB_raw.csv_ merges the data for England, Wales and Scotland in one file, yet leaves the data unaltered.
 
 The preprocessing includes cleaning and standardising the data and adding additional features. For a detailed description of the proprocessing consult the documentation [work in progress, link follows].
 
-We also identified duplicates, i.e. samples referring to the same property yet often at different times. A preprocessed version of the EPC data without duplicates can be found in _EPC_GB_preprocessed_and_deduplicated.csv_.
+We also identified duplicates, i.e. samples referring to the same property yet often at different points in times. A preprocessed version of the EPC data without duplicates can be found in _EPC_GB_preprocessed_and_deduplicated.csv_.
 
 Since duplicates can be interesting for some research questions, we also save the version with duplicates included as _EPC_GB_preprocessed.csv_.
 
