@@ -79,7 +79,9 @@ def load_cleansed_EPC(remove_duplicates=True):
     return cleansed_epc
 
 
-def load_GB_epc_data(version="preprocessed_dedupl"):
+def load_preprocessed_epc_data(
+    version="preprocessed_dedupl", usecols=None, low_memory=False
+):
     """Load the EPC dataset including England, Wales and Scotland.
     Select one of the following versions:
 
@@ -97,6 +99,15 @@ def load_GB_epc_data(version="preprocessed_dedupl"):
     version : str, {'raw', 'preprocessed', 'preprocessed_dedupl'}, default='preprocessed_dedupl'
         The version of the EPC data to load.
 
+    usecols : list, default=None
+        List of features/columns to load from EPC dataset.
+        If None, then all features will be loaded.
+
+    low_memory : bool, default=False
+        Internally process the file in chunks, resulting in lower memory use while parsing,
+        but possibly mixed type inference.
+        To ensure no mixed types either set False, or specify the type with the dtype parameter.
+
     Return
     ----------
     epc_df : pandas.DataFrame
@@ -113,10 +124,10 @@ def load_GB_epc_data(version="preprocessed_dedupl"):
 
     # If file does not exist (likely just not unzipped), unzip the data
     if not Path(file_path).is_file():
-        extract_data(file_path=".zip")
+        extract_data(file_path + ".zip")
 
     # Load  data
-    epc_df = pd.read_csv(file_path, low_memory=False)
+    epc_df = pd.read_csv(file_path, usecols=usecols, low_memory=low_memory)
 
     return epc_df
 
