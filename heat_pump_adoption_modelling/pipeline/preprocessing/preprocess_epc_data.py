@@ -1,7 +1,7 @@
 # File: heat_pump_adoption_modelling/pipeline/preprocessing/preprocess_epc_data.py
 """Loading and preprocessing the raw EPC data for England, Wales and Scotland."""
 
-# ---------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------
 from heat_pump_adoption_modelling import get_yaml_config, Path, PROJECT_DIR
 from heat_pump_adoption_modelling.pipeline.preprocessing import (
     feature_engineering,
@@ -9,7 +9,7 @@ from heat_pump_adoption_modelling.pipeline.preprocessing import (
 )
 from heat_pump_adoption_modelling import getters
 
-# ---------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------
 
 # Load config file
 config = get_yaml_config(

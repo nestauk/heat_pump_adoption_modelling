@@ -10,7 +10,7 @@ Last updated on 13/07/2021
 Adding new features to EPC dataset.
 """
 
-# ---------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------
 
 # Import
 import pandas as pd
@@ -20,7 +20,7 @@ from hashlib import md5
 from heat_pump_adoption_modelling import getters
 from heat_pump_adoption_modelling.pipeline.preprocessing import data_cleaning
 
-# ---------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------
 
 
 def short_hash(text):
