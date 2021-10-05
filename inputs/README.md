@@ -14,11 +14,18 @@ In the `inputs/EPC_data` folder you will find the following versions of the EPC 
 
 ### Raw data
 
-In /`inputs/EPC_data/Raw_data` you can find the raw EPC data. The current version holds the data up to the second quarter of 2021.
+In `/inputs/EPC_data/Raw_data` you can find the raw EPC data. The current version holds the data up to the second quarter of 2021.
 
 The data for England and Wales can be found in `/inputs/EPC_data/Raw_data/England_Wales` in a zipped file named _all-domestic-certificates.zip_.
 
-The data for Scotland can be found in `inputs/EPC*data/Raw_data/Scotland` in a zipped file named _D_EPC_data.csv_.
+The data for Scotland can be found in `inputs/EPC_data/Raw_data/Scotland` in a zipped file named _D_EPC_data.csv_.
+
+| Selection (Q2_2021) | Samples    |
+| ------------------- | ---------- |
+| GB                  | 22 840 162 |
+| England             | 20 318 501 |
+| Wales               | 1 111 383  |
+| Scotland            | 1 410 278  |
 
 ### Cleansed EPC (EST)
 
@@ -29,11 +36,11 @@ In `/inputs/EPC_data/EST_cleansed_versions` you can find a cleansed version of t
 EST selected a set of relevant features, cleaned them and got rid of erroneous values. They also identified duplicates. Both versions with and without deduplication are available as zipped files:
 
 - EPC_England_Wales_cleansed.csv.zip
-- EPC_England_Wales_cleansed_and_deduplicated.csv.zip
+- EPC_England_Wales_cleansed_and_deduplicated.csv.zip (14.4 million samples)
 
 This version does not include the most recent EPC data as it only contains entries until the first quarter of 2020. It also does not include any data on Scotland.
 
-The cleansed set includs the following features:
+The cleansed set includs the following 45 features:
 
 ```
 ROW_NUM
@@ -90,9 +97,11 @@ You can generate the preprocessed datasets from the raw data by executing the sc
 
 It will generate three versions of the data in `/outputs/EPC_data/Preprocessed_data/Q[quarter]_[YEAR]`. They will be written out as regular CSV-files.
 
-- EPC_GB_raw.csv : original data
-- EPC_GB_preprocessed.csv: cleaned and added features, includes duplicates
-- EPC_GB_preprocessed_and_deduplicated.csv: cleaned, added features and without duplicates
+| Filename                                 | Version                                         | Samples    |
+| ---------------------------------------- | ----------------------------------------------- | ---------- |
+| EPC_GB_raw.csv                           | Original raw data                               | 22 840 162 |
+| EPC_GB_preprocessed.csv                  | Cleaned and added features, includes duplicates | 22 839 568 |
+| EPC_GB_preprocessed_and_deduplicated.csv | Cleaneda and added features, without duplicates | 18 179 719 |
 
 ---
 
