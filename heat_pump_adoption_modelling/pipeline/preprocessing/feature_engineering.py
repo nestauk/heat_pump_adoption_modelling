@@ -175,7 +175,7 @@ def map_rating_to_cat(rating):
     ---------
     EPC category range, e.g. A-B."""
 
-    if rating >= 1.0 and rating < 2.0:
+    if rating < 2.0:
         return "F-G"
     elif rating >= 2.0 and rating < 3.0:
         return "E-F"
