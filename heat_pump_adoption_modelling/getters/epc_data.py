@@ -4,6 +4,7 @@
 # ---------------------------------------------------------------------------------
 
 import os
+import re
 import pandas as pd
 import numpy as np
 from zipfile import ZipFile
@@ -16,6 +17,15 @@ from heat_pump_adoption_modelling import PROJECT_DIR, get_yaml_config, Path
 config = get_yaml_config(
     Path(str(PROJECT_DIR) + "/heat_pump_adoption_modelling/config/base.yaml")
 )
+
+# Get paths
+RAW_ENG_WALES_DATA_PATH = str(PROJECT_DIR) + config["RAW_ENG_WALES_DATA_PATH"]
+RAW_SCOTLAND_DATA_PATH = str(PROJECT_DIR) + config["RAW_SCOTLAND_DATA_PATH"]
+
+RAW_ENG_WALES_DATA_ZIP = str(PROJECT_DIR) + config["RAW_ENG_WALES_DATA_ZIP"]
+RAW_SCOTLAND_DATA_ZIP = str(PROJECT_DIR) + config["RAW_SCOTLAND_DATA_ZIP"]
+
+RAW_EPC_DATA_PATH = str(PROJECT_DIR) + config["RAW_EPC_DATA_PATH"]
 
 
 def extract_data(file_path):
@@ -43,7 +53,187 @@ def extract_data(file_path):
         print("Done!")
 
 
-def load_cleansed_EPC(remove_duplicates=True):
+def load_Scotland_data(usecols=None, low_memory=False):
+    """Load the Scotland EPC data.
+
+    Parameters
+    ----------
+    usecols : list, default=None
+        List of features/columns to load from EPC dataset.
+        If None, then all features will be loaded.
+
+    low_memory : bool, default=False
+        Internally process the file in chunks, resulting in lower memory use while parsing,
+        but possibly mixed type inference.
+        To ensure no mixed types either set False, or specify the type with the dtype parameter.
+
+    Return
+    ---------
+    EPC_certs : pandas.DateFrame
+        Scotland EPC certificate data for given features."""
+
+    # If sample file does not exist (probably just not unzipped), unzip the data
+    if not [
+        file
+        for file in os.listdir(RAW_SCOTLAND_DATA_PATH)
+        if file.startswith("D_EPC_data_2012_Q4_extract")
+    ]:
+        extract_data(RAW_SCOTLAND_DATA_ZIP)
+
+    if usecols is not None:
+        # Fix columns ("WALLS" features are labeled differently here)
+        usecols = [re.sub("WALLS_", "WALL_", col) for col in usecols]
+        usecols = [re.sub("POSTTOWN", "POST_TOWN", col) for col in usecols]
+
+    # Get all directories
+    all_directories = os.listdir(RAW_SCOTLAND_DATA_PATH)
+    directories = [file for file in all_directories if file.endswith(".csv")]
+
+    EPC_certs = [
+        pd.read_csv(
+            RAW_SCOTLAND_DATA_PATH + file,
+            low_memory=low_memory,
+            usecols=usecols,
+            skiprows=1,  # don't load first row (more ellaborate feature names),
+            encoding="ISO-8859-1",
+        )
+        for file in directories
+    ]
+
+    # Concatenate single dataframes into dataframe
+    EPC_certs = pd.concat(EPC_certs, axis=0)
+    EPC_certs["COUNTRY"] = "Scotland"
+
+    EPC_certs = EPC_certs.rename(
+        columns={
+            "WALL_ENV_EFF": "WALLS_ENV_EFF",
+            "WALL_ENERGY_EFF": "WALLS_ENERGY_EFF",
+            "POST_TOWN": "POSTTOWN",
+        }
+    )
+
+    return EPC_certs
+
+
+def load_Wales_England_data(subset=None, usecols=None, low_memory=False):
+    """Load the England and/or Wales EPC data.
+
+    Parameters
+    ----------
+    subset : {'England', 'Wales', None}, default=None
+        EPC certificate area subset.
+        If None, then the data for both England and Wales will be loaded.
+
+    usecols : list, default=None
+        List of features/columns to load from EPC dataset.
+        If None, then all features will be loaded.
+
+    low_memory : bool, default=False
+        Internally process the file in chunks, resulting in lower memory use while parsing,
+        but possibly mixed type inference.
+        To ensure no mixed types either set False, or specify the type with the dtype parameter.
+
+    Return
+    ---------
+    EPC_certs : pandas.DateFrame
+        England/Wales EPC certificate data for given features."""
+
+    # If sample file does not exist (probably just not unzipped), unzip the data
+    if not Path(
+        RAW_ENG_WALES_DATA_PATH + "domestic-W06000015-Cardiff/certificates.csv"
+    ).is_file():
+        extract_data(RAW_ENG_WALES_DATA_ZIP)
+
+    # Get all directories
+    directories = [
+        dir
+        for dir in os.listdir(RAW_ENG_WALES_DATA_PATH)
+        if not (dir.startswith(".") or dir.endswith(".txt") or dir.endswith(".zip"))
+    ]
+
+    # Set subset dict to select respective subset directories
+    start_with_dict = {"Wales": "domestic-W", "England": "domestic-E"}
+
+    # Get directories for given subset
+    if subset in start_with_dict:
+        directories = [
+            dir for dir in directories if dir.startswith(start_with_dict[subset])
+        ]
+
+    # Load EPC certificates for given subset
+    # Only load columns of interest (if given)
+    EPC_certs = [
+        pd.read_csv(
+            RAW_ENG_WALES_DATA_PATH + directory + "/certificates.csv",
+            low_memory=low_memory,
+            usecols=usecols,
+        )
+        for directory in directories
+    ]
+
+    # Concatenate single dataframes into dataframe
+    EPC_certs = pd.concat(EPC_certs, axis=0)
+    EPC_certs["COUNTRY"] = subset
+
+    return EPC_certs
+
+
+def load_raw_epc_data(subset="GB", usecols=None, low_memory=False):
+    """Load and return EPC dataset, or specific subset, as pandas dataframe.
+
+    Parameters
+    ----------
+    subset : {'GB', 'Wales', 'England', 'Scotland', None}, default='GB'
+        EPC certificate area subset.
+
+    usecols : list, default=None
+        List of features/columns to load from EPC dataset.
+        If None, then all features will be loaded.
+
+    low_memory : bool, default=False
+        Internally process the file in chunks, resulting in lower memory use while parsing,
+        but possibly mixed type inference.
+        To ensure no mixed types either set False, or specify the type with the dtype parameter.
+
+    Return
+    ---------
+    EPC_certs : pandas.DateFrame
+        EPC certificate data for given area and features."""
+
+    all_epc_df = []
+
+    # Get Scotland data
+    if subset in ["Scotland", "GB"]:
+        epc_Scotland_df = load_Scotland_data(usecols=usecols)
+        all_epc_df.append(epc_Scotland_df)
+
+        if subset == "Scotland":
+            return epc_Scotland_df
+
+    # Get the Wales/England data
+    if subset in ["Wales", "England"]:
+        epc_df = load_Wales_England_data(subset, usecols=usecols, low_memory=low_memory)
+        return epc_df
+
+    # Merge the two datasets for GB
+    elif subset == "GB":
+
+        for country in ["Wales", "England"]:
+
+            epc_df = load_Wales_England_data(
+                country, usecols=usecols, low_memory=low_memory
+            )
+            all_epc_df.append(epc_df)
+
+        epc_df = pd.concat(all_epc_df, axis=0)
+
+        return epc_df
+
+    else:
+        raise IOError("'{}' is not a valid subset of the EPC dataset.".format(subset))
+
+
+def load_cleansed_EPC(remove_duplicates=True, usecols=None):
     """Load the cleansed EPC dataset (provided by EST)
     with the option of excluding/including duplicates.
 
@@ -67,10 +257,11 @@ def load_cleansed_EPC(remove_duplicates=True):
         extract_data(file_path + ".zip")
 
     print("Loading cleansed EPC data... This will take a moment.")
-    cleansed_epc = pd.read_csv(file_path, low_memory=False)
+    cleansed_epc = pd.read_csv(file_path, usecols=usecols, low_memory=False)
 
     # Drop first column
-    cleansed_epc = cleansed_epc.drop(columns="Unnamed: 0")
+    if "Unnamed: 0" in cleansed_epc.columns:
+        cleansed_epc = cleansed_epc.drop(columns="Unnamed: 0")
 
     # Add HP feature
     cleansed_epc["HEAT_PUMP"] = cleansed_epc.FINAL_HEATING_SYSTEM == "Heat pump"
@@ -80,7 +271,7 @@ def load_cleansed_EPC(remove_duplicates=True):
 
 
 def load_preprocessed_epc_data(
-    version="preprocessed_dedupl", usecols=None, low_memory=False
+    version="preprocessed_dedupl", usecols=None, snapshot_data=False, low_memory=False
 ):
     """Load the EPC dataset including England, Wales and Scotland.
     Select one of the following versions:
@@ -103,6 +294,10 @@ def load_preprocessed_epc_data(
         List of features/columns to load from EPC dataset.
         If None, then all features will be loaded.
 
+    snapshot_data : bool, default=False
+        If True, load the snapshot version of the preprocessed EPC data saved in /inputs
+        instead of the most recent version in /outputs.
+
     low_memory : bool, default=False
         Internally process the file in chunks, resulting in lower memory use while parsing,
         but possibly mixed type inference.
@@ -115,12 +310,15 @@ def load_preprocessed_epc_data(
 
     version_path_dict = {
         "raw": "RAW_EPC_DATA_PATH",
-        "preprocessed_dedupl": "PREPROC_EPC_DATA_PATH",
-        "preprocessed": "PREPROC_EPC_DATA_DEDUPL_PATH",
+        "preprocessed_dedupl": "PREPROC_EPC_DATA_DEDUPL_PATH",
+        "preprocessed": "PREPROC_EPC_DATA_PATH",
     }
 
     # Get the respective file path for version
     file_path = str(PROJECT_DIR) + config[version_path_dict[version]]
+
+    if snapshot_data:
+        file_path = str(PROJECT_DIR) + config["SNAPSHOT_" + version_path_dict[version]]
 
     # If file does not exist (likely just not unzipped), unzip the data
     if not Path(file_path).is_file():
