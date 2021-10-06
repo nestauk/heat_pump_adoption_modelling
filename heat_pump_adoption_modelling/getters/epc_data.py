@@ -242,6 +242,10 @@ def load_cleansed_EPC(remove_duplicates=True, usecols=None):
     remove_duplicates : bool, default=True.
         Whether or not to remove duplicates.
 
+    usecols : list, default=None
+        List of features/columns to load from EPC dataset.
+        If None, then all features will be loaded.
+
     Return
     ----------
     cleansed_epc : pandas.DataFrame
