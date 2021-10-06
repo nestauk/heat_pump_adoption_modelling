@@ -18,9 +18,9 @@ RAW_SCOTLAND_DATA_ZIP: "/inputs/EPC_data/raw_data/Scotland/D_EPC_data.zip"
 RAW_ENG_WALES_DATA_PATH: "/inputs/EPC_data/raw_data/England_Wales/"
 RAW_SCOTLAND_DATA_PATH: "/inputs/EPC_data/raw_data/Scotland/"
 
-IMD_ENGLAND_PATH: "/inputs/deprivation_data/england_IMD.csv"
-IMD_WALES_PATH: "/inputs/deprivation_data/wales_IMD.csv"
-IMD_SCOTLAND_PATH: "/inputs/deprivation_data/scotland_IMD.csv"
+IMD_ENGLAND_PATH: "/inputs/deprivation_data/England_IMD.csv"
+IMD_WALES_PATH: "/inputs/deprivation_data/Wales_IMD.csv"
+IMD_SCOTLAND_PATH: "/inputs/deprivation_data/Scotland_IMD.csv"
 
 EPC_FEAT_SELECTION:
   [
