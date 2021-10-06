@@ -2,12 +2,15 @@
 """Loading and preprocessing the raw EPC data for England, Wales and Scotland."""
 
 # ----------------------------------------------------------------------------------
+
+import time
+
 from heat_pump_adoption_modelling import get_yaml_config, Path, PROJECT_DIR
 from heat_pump_adoption_modelling.pipeline.preprocessing import (
     feature_engineering,
     data_cleaning,
 )
-from heat_pump_adoption_modelling import getters
+from heat_pump_adoption_modelling.getters import epc_data
 
 # ----------------------------------------------------------------------------------
 
@@ -146,7 +149,7 @@ def load_and_preprocess_epc_data(
         )
         save_data = False
 
-    epc_df = getters.epc_data.load_epc_data(subset=subset, usecols=usecols)
+    epc_df = epc_data.load_raw_epc_data(subset=subset, usecols=usecols)
     epc_df = preprocess_data(
         epc_df, remove_duplicates=remove_duplicates, save_data=save_data
     )
@@ -159,8 +162,15 @@ def load_and_preprocess_epc_data(
 def main():
     """Main function: Loads and preprocessed EPC data with default settings."""
 
+    start_time = time.time()
+
+    print("Loading and preprocessing EPC data... This will take a while.\n")
     epc_df = load_and_preprocess_epc_data()
-    print(epc_df.head())
+
+    end_time = time.time()
+    runtime = (end_time - start_time) / 60
+
+    print("\nLoading and preprocessing the EPC data took {} minutes.".format(runtime))
 
 
 if __name__ == "__main__":
