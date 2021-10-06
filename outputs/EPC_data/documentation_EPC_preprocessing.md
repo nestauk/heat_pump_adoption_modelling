@@ -1,5 +1,7 @@
 # EPC Dataset
 
+Last updated: 6 October 2021 by Julia Suter
+
 **This documentation describes the different EPC data versions for England, Wales and Scotland and how the the data was preprocessed in order to facilitate data analysis.**
 
 ### Original EPC Data
