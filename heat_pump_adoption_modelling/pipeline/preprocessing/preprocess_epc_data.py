@@ -168,7 +168,7 @@ def main():
     epc_df = load_and_preprocess_epc_data()
 
     end_time = time.time()
-    runtime = (end_time - start_time) / 60
+    runtime = round((end_time - start_time) / 60)
 
     print("\nLoading and preprocessing the EPC data took {} minutes.".format(runtime))
 
