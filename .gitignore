@@ -112,6 +112,7 @@ target/
 !/outputs/EPC_data
 /outputs/EPC_data/preprocessed_data/*
 !/outputs/EPC_data/preprocessed_data
+!/outputs/EPC_data/preprocessed_data/.gitkeep
 
 /outputs/EPC_data/preprocessed_data/Q2_2021/*
 !/outputs/EPC_data/preprocessed_data/Q2_2021
