@@ -41,12 +41,20 @@ def get_country_IMD_data(country, usecols=None):
     file_path = str(PROJECT_DIR) + config[country_path_dict[country]]
 
     imd_df = pd.read_csv(file_path, usecols=usecols)
+    imd_df["Country"] = country
 
     return imd_df
 
 
 def get_GB_IMD_data(
-    usecols=["IMD Rank", "IMD Decile", "Postcode", "Income Score", "Employment Score"]
+    usecols=[
+        "IMD Rank",
+        "IMD Decile",
+        "Postcode",
+        "Income Score",
+        "Employment Score",
+        "Country",
+    ]
 ):
     """Get deprivation data for England, Wales and Scotland.
 
