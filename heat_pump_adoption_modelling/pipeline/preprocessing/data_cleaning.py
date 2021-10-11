@@ -113,8 +113,9 @@ def standardise_constr_age(age, adjust_age_bands=True):
     Return
     ----------
     Standardised age construction band : str
-        tandardised age construction band."""
+        Standardised age construction band."""
 
+    # Handle NaN
     if isinstance(age, float):
         return "unknown"
 
@@ -240,8 +241,9 @@ def standardise_efficiency(efficiency):
     standardised tenure : str
         Standardised efficiency type."""
 
+    # Handle NaN
     if isinstance(efficiency, float):
-        return efficiency
+        return "unknown"
 
     efficiency = efficiency.lower().strip()
     efficiency = efficiency.strip('"')
