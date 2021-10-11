@@ -99,9 +99,7 @@ def get_new_epc_rating_features(df):
         "E": 3,
         "F": 2,
         "G": 1,
-        "H": 0,
-        "INVALID!": 0,
-        "unknown": 0,
+        "unknown": -99,
     }
 
     # EPC range cat dict
@@ -113,6 +111,7 @@ def get_new_epc_rating_features(df):
         "E": "E-G",
         "F": "E-G",
         "G": "E-G",
+        "unknown": "unknown",
     }
 
     # EPC rating in number instead of letter
@@ -126,9 +125,17 @@ def get_new_epc_rating_features(df):
         df.POTENTIAL_ENERGY_RATING.map(rating_dict) - df["CURR_ENERGY_RATING_NUM"]
     )
 
-    # Set DIFF_POT_ENERGY_RATING to 0.0
-    # if substraction yielded value below 0.0 due to input error (few cases).
-    df = df[df.DIFF_POT_ENERGY_RATING >= 0.0]
+    # Set DIFF_POT_ENERGY_RATING to "unknown" if substraction yielded value below 0.0 or above 99
+    # as unknown EPC is represented by -99
+    # Catches other errors and faulty data as well
+
+    df.loc[
+        (df.DIFF_POT_ENERGY_RATING < 0.0 or df.DIFF_POT_ENERGY_RATING > 7),
+        "DIFF_POT_ENERGY_RATING",
+    ] = "unknown"
+
+    # Change -99 value to "unknown"
+    df["CURR_ENERGY_RATING_NUM"] = df["CURR_ENERGY_RATING_NUM"].replace(-99, "unknown")
 
     return df
 
