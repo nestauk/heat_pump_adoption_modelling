@@ -296,7 +296,7 @@ def clean_local_authority(local_authority):
 
 def clean_epc_data(df):
     """Standardise and clean EPC data.
-    For example, reformat dates and standardise cateogories.
+    For example, reformat dates and standardise categories.
 
     Parameters
     ----------
