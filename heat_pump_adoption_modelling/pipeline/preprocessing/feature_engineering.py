@@ -266,6 +266,11 @@ def get_heating_features(df, fine_grained_HP_types=False):
                 source_type = "electric"
                 has_hp = True
 
+            elif "community heat pump" in heating:
+                system_type = "community heat pump"
+                source_type = "eletric"
+                has_hp = True
+
             elif "heat pump" in heating:
                 system_type = "heat pump"
                 source_type = "electric"
