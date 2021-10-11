@@ -78,8 +78,9 @@ def standardise_tenure(tenure):
     standardised tenure : str
         Standardised tenure type."""
 
+    # Catch NaN
     if isinstance(tenure, float):
-        return tenure
+        return "unknown"
 
     tenure = tenure.lower()
     tenure_mapping = {
