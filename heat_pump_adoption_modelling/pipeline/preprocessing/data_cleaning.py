@@ -233,12 +233,12 @@ def standardise_efficiency(efficiency):
 
     Parameters
     ----------
-    tenure : str
+    efficiency : str
         Raw efficiency type.
 
     Return
     ----------
-    standardised tenure : str
+    standardised efficiency : str
         Standardised efficiency type."""
 
     # Handle NaN
