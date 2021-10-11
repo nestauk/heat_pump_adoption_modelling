@@ -1,6 +1,13 @@
 # File: heat_pump_adoption_modelling/pipeline/preprocessing/data_cleaning.py
 """Cleaning and standardising the EPC dataset."""
 
+from heat_pump_adoption_modelling import PROJECT_DIR, get_yaml_config, Path
+
+# Load config file
+config = get_yaml_config(
+    Path(str(PROJECT_DIR) + "/heat_pump_adoption_modelling/config/base.yaml")
+)
+
 
 def reformat_postcode(df):
     """Change the POSTCODE feature in uniform format (without spaces).
@@ -48,8 +55,8 @@ def date_formatter(date):
     if year.startswith("00"):
         year = "20" + year[-2:]
 
-    # Discard entries past 2022 and before 2008
-    if len(year) != 4 or int(year) > 2022 or int(year) < 2008:
+    # Discard entries past current year + plus (future projects) and before 2008
+    if len(year) != 4 or int(year) > config["CURRENT_YEAR"] + 1 or int(year) < 2008:
         return "unknown"
 
     formatted_date = year + "-" + month + "-" + day
