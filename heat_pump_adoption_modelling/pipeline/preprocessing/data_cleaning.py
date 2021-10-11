@@ -296,6 +296,42 @@ def clean_local_authority(local_authority):
         return local_authority
 
 
+def cap_feature_values(df, feature, cap_n=10):
+    """Cap the values of a given feature, in order to reduce the
+    effect of outliers.
+    For example, set NUMBER_OF_HABITABLE_ROOMS values that are
+    greater/equal to 10 to "10+".
+
+    Paramters
+    ----------
+    df : pandas.DataFrame
+        Given dataframe.
+
+    feature : str
+        Feature for which values are capped.
+
+    cap_n : int, default=10
+        At which value to cap.
+
+    Return
+    ---------
+     df : pandas.DataFrame
+        Dataframe with capped values."""
+
+    # Change 'unknown' temporarily to -1
+    df[feature].replace({"unknown": -1}, inplace=True)
+
+    # Cap at given limit (i.e. 10)
+    df.loc[(df[feature] >= cap_n), feature,] = (
+        str(cap_n) + "+"
+    )
+
+    # Change back to 'unknown'
+    df[feature].replace({-1: "unknown"}, inplace=True)
+
+    return df
+
+
 def clean_epc_data(df):
     """Standardise and clean EPC data.
     For example, reformat dates and standardise categories.
@@ -310,76 +346,45 @@ def clean_epc_data(df):
     df : pandas.DataFrame
         Standarised and cleaned EPC dataframe."""
 
+    column_to_function_dict = {
+        "LODGEMENT_DATE": date_formatter,
+        "INSPECTION_DATE": date_formatter,
+        "TENURE": standardise_tenure,
+        "CONSTRUCTION_AGE_BAND": standardise_constr_age,
+        "WINDOWS_ENERGY_EFF": standardise_efficiency,
+        "FLOOR_ENERGY_EFF": standardise_efficiency,
+        "HOT_WATER_ENERGY_EFF": standardise_efficiency,
+        "LIGHTING_ENERGY_EFF": standardise_efficiency,
+        "LOCAL_AUTHORITY_LABEL": clean_local_authority,
+    }
+
+    feat_to_invalid_value_dict = {
+        "CURRENT_ENERGY_RATING": "INVALID!",
+        "POTENTIAL_ENERGY_RATING": "INVALID!",
+        "BUILT_FORM": "NO DATA!",
+    }
+
+    # Map NaN and other "no data" values to unknown
     for column in df.columns:
         df[column] = df[column].fillna("unknown")
 
+    # Replace values such as INVALID! or NODATA!
+    for column in df.columns:
+        if column in feat_to_invalid_value_dict.keys:
+            df[column] = df[column].replace(
+                feat_to_invalid_value_dict[column], "unknown"
+            )
+
+    # Clean up features
+    for column in df.columns and column in column_to_function_dict.keys:
+        cleaning_function = column_to_function_dict[column]
+        df[column] = df[column].apply(cleaning_function)
+
+    # Upper case psotcode
     if "POSTCODE" in df.columns:
         df["POSTCODE"] = df["POSTCODE"].str.upper()
 
-    if "LODGEMENT_DATE" in df.columns:
-        # Reformat dates
-        df["LODGEMENT_DATE"] = df["LODGEMENT_DATE"].apply(date_formatter)
-
-    if "INSPECTION_DATE" in df.columns:
-        df.dropna(subset=["INSPECTION_DATE"], inplace=True)
-        df["INSPECTION_DATE"] = df["INSPECTION_DATE"].apply(date_formatter)
-
-    if "TENURE" in df.columns:
-        # Standarise tenure type
-        df["TENURE"] = df["TENURE"].apply(standardise_tenure)
-
-    if "CONSTRUCTION_AGE_BAND" in df.columns:
-        df["CONSTRUCTION_AGE_BAND"] = df["CONSTRUCTION_AGE_BAND"].apply(
-            standardise_constr_age
-        )
-
-    if "NUMBER_HABITABLE_ROOMS" in df.columns:
-
-        # Change 'unknown' temporarily to integer for capping at 10+ rooms
-        df["NUMBER_HABITABLE_ROOMS"].replace({"unknown": -1}, inplace=True)
-
-        df.loc[
-            (df.NUMBER_HABITABLE_ROOMS >= 10),
-            "NUMBER_HABITABLE_ROOMS",
-        ] = "10+"
-
-        # Change back to 'unknown'
-        df["NUMBER_HABITABLE_ROOMS"].replace({-1: "unknown"}, inplace=True)
-
-    if "WINDOWS_ENERGY_EFF" in df.columns:
-        df["WINDOWS_ENERGY_EFF"] = df["WINDOWS_ENERGY_EFF"].apply(
-            standardise_efficiency
-        )
-
-    if "FLOOR_ENERGY_EFF" in df.columns:
-        df["FLOOR_ENERGY_EFF"] = df["FLOOR_ENERGY_EFF"].apply(standardise_efficiency)
-
-    if "HOT_WATER_ENERGY_EFF" in df.columns:
-        df["HOT_WATER_ENERGY_EFF"] = df["HOT_WATER_ENERGY_EFF"].apply(
-            standardise_efficiency
-        )
-
-    if "LIGHTING_ENERGY_EFF" in df.columns:
-        df["LIGHTING_ENERGY_EFF"] = df["LIGHTING_ENERGY_EFF"].apply(
-            standardise_efficiency
-        )
-
-    if "LOCAL_AUTHORITY_LABEL" in df.columns:
-        df["LOCAL_AUTHORITY_LABEL"] = df["LOCAL_AUTHORITY_LABEL"].apply(
-            clean_local_authority
-        )
-
-    if "CURRENT_ENERGY_RATING" in df.columns:
-        df["CURRENT_ENERGY_RATING"] = df["CURRENT_ENERGY_RATING"].replace(
-            ["INVALID!"], "unknown"
-        )
-
-    if "POTENTIAL_ENERGY_RATING" in df.columns:
-        df["POTENTIAL_ENERGY_RATING"] = df["POTENTIAL_ENERGY_RATING"].replace(
-            ["INVALID!"], "unknown"
-        )
-
-    if "BUILT_FORM" in df.columns:
-        df["BUILT_FORM"] = df["BUILT_FORM"].replace(["NO DATA!"], "unknown")
+    # Limit max value for NUMBER_HABITABLE_ROOMS
+    df = cap_feature_values("NUMBER_HABITABLE_ROOMS", n_cap=10)
 
     return df
