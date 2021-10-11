@@ -145,7 +145,7 @@ def load_and_preprocess_epc_data(
     # in order to prevent confusion.
     if subset != "GB":
         print(
-            "The precessed data will be returned but not be written to file. Change subset to 'GB' or save processed data manually."
+            "The preprocessed data will be returned but not be written to file. Change subset to 'GB' or save processed data manually."
         )
         save_data = False
 
