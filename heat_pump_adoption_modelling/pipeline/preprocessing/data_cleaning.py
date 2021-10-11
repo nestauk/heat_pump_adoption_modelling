@@ -322,9 +322,7 @@ def cap_feature_values(df, feature, cap_n=10):
     df[feature].replace({"unknown": -1}, inplace=True)
 
     # Cap at given limit (i.e. 10)
-    df.loc[(df[feature] >= cap_n), feature,] = (
-        str(cap_n) + "+"
-    )
+    df.loc[(df[feature] >= cap_n), feature] = str(cap_n) + "+"
 
     # Change back to 'unknown'
     df[feature].replace({-1: "unknown"}, inplace=True)
