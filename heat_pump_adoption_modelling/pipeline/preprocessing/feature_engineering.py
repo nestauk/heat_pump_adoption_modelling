@@ -1,11 +1,4 @@
 # File: heat_pump_adoption_modelling/pipeline/preprocessing/feature_engineering.py
-"""Create new features.
-
-Created May 2021
-@author: Julia Suter
-Last updated on 13/07/2021
-"""
-
 """
 Adding new features to EPC dataset.
 """
@@ -17,7 +10,7 @@ import pandas as pd
 import re
 from hashlib import md5
 
-from heat_pump_adoption_modelling import getters
+from heat_pump_adoption_modelling.getters import location_data
 from heat_pump_adoption_modelling.pipeline.preprocessing import data_cleaning
 
 # ----------------------------------------------------------------------------------
@@ -228,7 +221,7 @@ def get_heating_features(df, fine_grained_HP_types=False):
         system_type = "unknown"
         source_type = "unknown"
         has_hp = False
-        hp_type = "NO HP"
+        hp_type = "No HP"
 
         # If heating value exists
         if not (pd.isnull(heating) and isinstance(heating, float)):
@@ -504,7 +497,7 @@ def count_number_of_entries(row, feature, ref_counts):
     return counts
 
 
-def get_coordinates(df):
+def get_postcode_coordinates(df):
     """Add coordinates (longitude and latitude) to the dataframe
     based on the postcode.
 
@@ -517,14 +510,14 @@ def get_coordinates(df):
         Same dataframe with longitude and latitude columns added."""
 
     # Get postcode/coordinates
-    location_df = getters.util_data.get_location_data()
+    postcode_coordinates_df = location_data.get_postcode_coordinates()
 
     # Reformat POSTCODE
     df = data_cleaning.reformat_postcode(df)
-    location_df = data_cleaning.reformat_postcode(location_df)
+    postcode_coordinates_df = data_cleaning.reformat_postcode(postcode_coordinates_df)
 
     # Merge with location data
-    df = pd.merge(df, location_df, on=["POSTCODE"])
+    df = pd.merge(df, postcode_coordinates_df, on=["POSTCODE"])
 
     return df
 
