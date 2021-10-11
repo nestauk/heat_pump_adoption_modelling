@@ -22,7 +22,7 @@ country_path_dict = {
 }
 
 
-def get_country_IMD_data(country, usecols=None):
+def get_country_imd_data(country, usecols=None):
     """Get deprivation data for specific country.
 
     Parameters
@@ -46,7 +46,7 @@ def get_country_IMD_data(country, usecols=None):
     return imd_df
 
 
-def get_GB_IMD_data(
+def get_gb_imd_data(
     usecols=[
         "IMD Rank",
         "IMD Decile",
@@ -69,16 +69,16 @@ def get_GB_IMD_data(
     imd_df : pandas.DataFrame
         Deprivation data for all countries."""
 
-    england_imd = get_country_IMD_data("England", usecols=usecols)
-    wales_imd = get_country_IMD_data("Wales", usecols=usecols)
-    scotland_imd = get_country_IMD_data("Scotland", usecols=usecols)
+    england_imd = get_country_imd_data("England", usecols=usecols)
+    wales_imd = get_country_imd_data("Wales", usecols=usecols)
+    scotland_imd = get_country_imd_data("Scotland", usecols=usecols)
 
     imd_df = pd.concat([england_imd, wales_imd, scotland_imd], axis=0)
 
     return imd_df
 
 
-def merge_IMD_with_other_set(imd_df, other_df):
+def merge_imd_with_other_set(imd_df, other_df):
     """Merge IMD data with other data based on postcode.
 
     Parameters

@@ -43,7 +43,7 @@ def short_hash(text):
     return int(short_code)
 
 
-def get_unique_building_ID(df):
+def get_unique_building_id(df):
     """Add unique building ID column to dataframe.
 
     Parameters
@@ -67,7 +67,7 @@ def get_unique_building_ID(df):
     return df
 
 
-def get_new_EPC_rating_features(df):
+def get_new_epc_rating_features(df):
     """Get new EPC rating features related to EPC ratings.
 
         CURR_ENERGY_RATING_NUM: EPC rating representeed as number
@@ -578,11 +578,11 @@ def get_additional_features(df):
 
     df = get_date_features(df)
 
-    df = get_unique_building_ID(df)
+    df = get_unique_building_id(df)
     df = get_building_entry_feature(df, "BUILDING_REFERENCE_NUMBER")
     df = get_building_entry_feature(df, "BUILDING_ID")
 
     df = get_heating_features(df)
-    df = get_new_EPC_rating_features(df)
+    df = get_new_epc_rating_features(df)
 
     return df
