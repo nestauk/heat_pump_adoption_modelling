@@ -314,7 +314,7 @@ def clean_epc_data(df):
     if "POSTCODE" in df.columns:
         df["POSTCODE"] = df["POSTCODE"].str.upper()
 
-    if "LOGEMENT_DATE" in df.columns:
+    if "LODGEMENT_DATE" in df.columns:
         # Reformat dates
         df["LODGEMENT_DATE"] = df["LODGEMENT_DATE"].apply(date_formatter)
 
