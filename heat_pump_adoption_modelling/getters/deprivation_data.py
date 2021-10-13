@@ -3,12 +3,10 @@
 
 # ---------------------------------------------------------------------------------
 
-
 from heat_pump_adoption_modelling import PROJECT_DIR, get_yaml_config, Path
 import pandas as pd
 
 # ---------------------------------------------------------------------------------
-
 
 # Load config file
 config = get_yaml_config(
