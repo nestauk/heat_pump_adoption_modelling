@@ -59,7 +59,7 @@ def date_formatter(date):
     if len(year) != 4 or int(year) > config["CURRENT_YEAR"] + 1 or int(year) < 2008:
         return "unknown"
 
-    formatted_date = year + "-" + month + "-" + day
+    formatted_date = year + "/" + month + "/" + day
 
     return formatted_date
 
@@ -200,6 +200,7 @@ def standardise_constr_age(age, adjust_age_bands=True):
         "2008": "2007 onwards",
         "2007": "2007 onwards",
         "1900": "1900-1929",
+        "before 1919": "Scotland: before 1919",
         "1919-1929": "1900-1929",
         "1930-1949": "1930-1949",
         "1950-1964": "1950-1966",
@@ -227,6 +228,10 @@ def standardise_constr_age(age, adjust_age_bands=True):
             return "unknown"
         else:
             return age_mapping[age]
+
+
+def standardise_constr_age_original(age):
+    return standardise_constr_age(age, adjust_age_bands=False)
 
 
 def standardise_efficiency(efficiency):
@@ -368,21 +373,26 @@ def clean_epc_data(df):
 
     # Replace values such as INVALID! or NODATA!
     for column in df.columns:
-        if column in feat_to_invalid_value_dict.keys:
+        if column in feat_to_invalid_value_dict.keys():
             df[column] = df[column].replace(
                 feat_to_invalid_value_dict[column], "unknown"
             )
 
+    df["CONSTRUCTION_AGE_BAND_ORIGINAL"] = df["CONSTRUCTION_AGE_BAND"].apply(
+        standardise_constr_age_original
+    )
+
     # Clean up features
-    for column in df.columns and column in column_to_function_dict.keys:
-        cleaning_function = column_to_function_dict[column]
-        df[column] = df[column].apply(cleaning_function)
+    for column in df.columns:
+        if column in column_to_function_dict.keys():
+            cleaning_function = column_to_function_dict[column]
+            df[column] = df[column].apply(cleaning_function)
 
     # Upper case psotcode
     if "POSTCODE" in df.columns:
         df["POSTCODE"] = df["POSTCODE"].str.upper()
 
     # Limit max value for NUMBER_HABITABLE_ROOMS
-    df = cap_feature_values("NUMBER_HABITABLE_ROOMS", n_cap=10)
+    df = cap_feature_values(df, "NUMBER_HABITABLE_ROOMS", cap_n=10)
 
     return df
