@@ -120,7 +120,7 @@ def get_new_epc_rating_features(df):
 
     # Filter out unreasonable values (below 0 and above 7)
     df.loc[
-        (df.DIFF_POT_ENERGY_RATING < 0.0 or df.DIFF_POT_ENERGY_RATING > 7),
+        ((df.DIFF_POT_ENERGY_RATING < 0.0) | (df.DIFF_POT_ENERGY_RATING > 7)),
         "DIFF_POT_ENERGY_RATING",
     ] = "unknown"
 
