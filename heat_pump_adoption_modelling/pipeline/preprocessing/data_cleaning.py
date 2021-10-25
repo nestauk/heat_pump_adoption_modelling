@@ -133,6 +133,7 @@ def standardise_constr_age(age, adjust_age_bands=True):
         "England and Wales: 1996-2002": "England and Wales: 1996-2002",
         "England and Wales: 2003-2006": "England and Wales: 2003-2006",
         "England and Wales: 2007-2011": "England and Wales: 2007-2011",
+        "England and Wales: 2007-2011": "England and Wales: 2007 onwards",
         "England and Wales: 2007 onwards": "England and Wales: 2007 onwards",
         "England and Wales: 2012 onwards": "England and Wales: 2012 onwards",
         "1900": "England and Wales: 1900-1929",
