@@ -1,3 +1,6 @@
+# File: heat_pump_adoption_modelling/pipeline/MCS/load_mcs.py
+"""Loading MCS HP records and relevant EPC records."""
+
 import pandas as pd
 import numpy as np
 import re
@@ -5,10 +8,27 @@ import re
 from heat_pump_adoption_modelling import PROJECT_DIR
 
 max_cost = 5000000
+epc_address_fields = ["ADDRESS1", "POSTTOWN", "POSTCODE"]
+epc_characteristic_fields = [
+    "TOTAL_FLOOR_AREA",
+    "CONSTRUCTION_AGE_BAND",
+    "BUILT_FORM",
+    "PROPERTY_TYPE",
+    "HP_INSTALLED",
+]
 # TODO: put in config
 
-#### Load in MCS data, filter to domestic HPs and perform some simple cleaning
+
 def load_domestic_hps():
+    """Loads domestic MCS HP installation data from file
+    and performs some cleaning.
+
+    Return
+    ----------
+    dhps: pandas.Dataframe
+        All MCS heat pump installation records with 'domestic' installation type.
+    """
+
     hps = (
         pd.read_excel(
             PROJECT_DIR
@@ -55,9 +75,7 @@ def load_domestic_hps():
 
     # Filter to domestic installations
     dhps = (
-        hps[
-            [string in ["Domestic", "Domestic "] for string in hps["installation_type"]]
-        ]
+        hps[hps["installation_type"].isin(["Domestic", "Domestic "])]
         .drop(columns="installation_type")
         .reset_index(drop=True)
     )
@@ -79,3 +97,20 @@ def load_domestic_hps():
     dhps["cost"] = dhps["cost"].mask((dhps["cost"] == 0) | (dhps["cost"] > max_cost))
 
     return dhps
+
+
+def load_epcs():
+    """Loads relevant columns of EPC records.
+
+    Return
+    ----------
+    epcs: pandas.Dataframe
+        EPC records, columns specified in config.
+    """
+    epcs = pd.read_csv(
+        PROJECT_DIR
+        / "outputs/EPC_data/preprocessed_data/Q2_2021/EPC_GB_preprocessed_and_deduplicated.csv",
+        usecols=epc_address_fields + epc_characteristic_fields,
+    )
+
+    return epcs
