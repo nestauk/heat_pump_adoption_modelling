@@ -77,6 +77,7 @@ def load_domestic_hps():
     )
 
     # Make RHI field values easier to use
+    # Commented out as RHI field has disappeared from the most recent MCS data
     # hps["rhi"] = hps["rhi"].replace(
     #     {
     #         "RHI Installation ": True,
