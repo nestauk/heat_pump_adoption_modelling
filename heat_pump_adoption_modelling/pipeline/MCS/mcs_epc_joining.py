@@ -16,6 +16,7 @@ from heat_pump_adoption_modelling.pipeline.MCS.load_mcs import (
 
 
 matching_parameter = 0.7
+merged_path = "outputs/mcs_epc.csv"
 # TODO: put this in config
 
 
@@ -234,35 +235,31 @@ def join_mcs_epc_data(dhps=None, epcs=None, save=True, drop_epc_address=False):
     merged : pandas.Dataframe
         Dataframe containing merged MCS and EPC records."""
 
-    print("Preparing domestic HP data...")
     if dhps is None:
+        print("Preparing domestic HP data...")
         dhps = load_domestic_hps()
         dhps = prepare_dhps(dhps)
 
-    print("Preparing EPC data...")
     if epcs is None:
+        print("Preparing EPC data...")
         epcs = load_epcs()
         epcs = prepare_epcs(epcs)
 
     print("Forming a matching...")
     matching = form_matching(df1=dhps, df2=epcs)
 
-    print("Finding the best matches...")
     # First ensure that all matches are above the matching parameter
     good_matches = matching[
-        (matching.numerics == 1) & (matching.address >= matching_parameter)
+        (matching["numerics"] == 1) & (matching["address_score"] >= matching_parameter)
     ].reset_index()
 
     # Take the indices of the rows with best address match for each MCS index
-    top_match_indices = (
-        good_matches.groupby("level_0")["address_score"].transform(max)
-        == good_matches["address_score"]
-    )
+    top_match_indices = good_matches.groupby("level_0")["address_score"].idxmax()
 
     # Filter the matches df to just the top matches
     # Drop duplicates in case of ties
     top_matches = (
-        good_matches[top_match_indices]
+        good_matches.loc[top_match_indices]
         .drop_duplicates("level_0")
         .drop(columns=["numerics", "address_score"])
     )
@@ -294,7 +291,7 @@ def join_mcs_epc_data(dhps=None, epcs=None, save=True, drop_epc_address=False):
         merged = merged.rename({"standardised_address_y": "epc_address"})
 
     if save:
-        merged.to_csv(PROJECT_DIR / "outputs/mcs_epc.csv")
+        merged.to_csv(PROJECT_DIR / merged_path)
 
     return merged
 
@@ -312,7 +309,12 @@ def main():
     end_time = time.time()
     runtime = round((end_time - start_time) / 60)
 
-    print("Loading and joining MCS and EPC data took {} minutes.".format(runtime))
+    print(
+        "Loading and joining MCS and EPC data took {} minutes.\n\nOutput saved in ".format(
+            runtime
+        )
+        + merged_path
+    )
 
 
 if __name__ == "__main__":
