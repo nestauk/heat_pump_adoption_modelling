@@ -165,7 +165,23 @@ def main():
     start_time = time.time()
 
     print("Loading and preprocessing EPC data... This will take a while.\n")
-    epc_df = load_and_preprocess_epc_data()
+    epc_df = load_and_preprocess_epc_data(
+        usecols=EPC_FEAT_SELECTION
+        + [
+            "SOLAR_WATER_HEATING_FLAG",
+            "FLOOR_HEIGHT",
+            "WIND_TURBINE_COUNT",
+            "PHOTO_SUPPLY",
+            "FLOOR_LEVEL",
+            "NUMBER_HEATED_ROOMS",
+            "MECHANICAL_VENTILATION",
+            "MAIN_HEATING_CONTROLS",
+            "MULTI_GLAZE_PROPORTION",
+            "GLAZED_TYPE",
+            "GLAZED_AREA",
+            "EXTENSION_COUNT",
+        ]
+    )
 
     end_time = time.time()
     runtime = round((end_time - start_time) / 60)
