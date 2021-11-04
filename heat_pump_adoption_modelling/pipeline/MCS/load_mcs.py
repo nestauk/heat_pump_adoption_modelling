@@ -14,10 +14,14 @@ epc_characteristic_fields = [
     "CONSTRUCTION_AGE_BAND",
     "BUILT_FORM",
     "PROPERTY_TYPE",
+    "BUILDING_REFERENCE_NUMBER",
+    "INSPECTION_DATE",
+    "FLOOR_ENERGY_EFF",
+    "WALLS_ENERGY_EFF",
     "HP_INSTALLED",
 ]
 mcs_path = "inputs/MCS_data/heat pumps 2008 to end of sept 2021 - Copy.xlsx"
-epc_path = "outputs/EPC_data/preprocessed_data/Q2_2021/EPC_GB_preprocessed_and_deduplicated.csv"
+epc_path = "outputs/EPC_data/preprocessed_data/Q2_2021/EPC_GB_preprocessed.csv"
 # TODO: put in config
 
 
@@ -114,7 +118,7 @@ def load_domestic_hps():
 
     # Replace unreasonable cost and capacity values with NA
     dhps["cost"] = dhps["cost"].mask((dhps["cost"] == 0) | (dhps["cost"] > max_cost))
-    dhps["capacity"] = dhps["capacity"].mask(dhps["cost"] > max_capacity)
+    dhps["capacity"] = dhps["capacity"].mask(dhps["capacity"] > max_capacity)
 
     dhps = dhps.reset_index(drop=True)
 

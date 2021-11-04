@@ -211,7 +211,9 @@ def form_matching(df1, df2):
     return matching
 
 
-def join_mcs_epc_data(dhps=None, epcs=None, save=True, drop_epc_address=False):
+def join_mcs_epc_data(
+    dhps=None, epcs=None, save=True, all_records=False, drop_epc_address=False
+):
     """Joins MCS and EPC data.
 
     Parameters
@@ -253,16 +255,27 @@ def join_mcs_epc_data(dhps=None, epcs=None, save=True, drop_epc_address=False):
         (matching["numerics"] == 1) & (matching["address_score"] >= matching_parameter)
     ].reset_index()
 
-    # Take the indices of the rows with best address match for each MCS index
-    top_match_indices = good_matches.groupby("level_0")["address_score"].idxmax()
+    if all_records:
 
-    # Filter the matches df to just the top matches
-    # Drop duplicates in case of ties
-    top_matches = (
-        good_matches.loc[top_match_indices]
-        .drop_duplicates("level_0")
-        .drop(columns=["numerics", "address_score"])
-    )
+        def get_max_epc_indices(df):
+            return df.loc[df.address_score == df.address_score.max(), "level_1"]
+
+        top_matches = (
+            good_matches.groupby("level_0")
+            .apply(get_max_epc_indices)
+            .droplevel(1)
+            .reset_index()
+            .rename(columns={"index": "level_0"})
+        )
+
+    else:
+        # Take the indices of the rows with best address match for each MCS index
+        top_match_indices = good_matches.groupby("level_0")["address_score"].idxmax()
+
+        # Filter the matches df to just the top matches
+        top_matches = good_matches.loc[top_match_indices].drop(
+            columns=["numerics", "address_score"]
+        )
 
     print("Joining the data...")
     merged = (
@@ -271,7 +284,6 @@ def join_mcs_epc_data(dhps=None, epcs=None, save=True, drop_epc_address=False):
         .merge(epcs.reset_index(), how="left", left_on="level_1", right_on="index")
         .drop(
             columns=[
-                "index_x",
                 "standardised_postcode_x",
                 "standardised_address_x",
                 "numeric_tokens_x",
