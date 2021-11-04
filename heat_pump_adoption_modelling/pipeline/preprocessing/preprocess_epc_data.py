@@ -115,7 +115,11 @@ def preprocess_data(df, remove_duplicates=True, save_data=True, verbose=True):
 
 
 def load_and_preprocess_epc_data(
-    subset="GB", usecols=EPC_FEAT_SELECTION, remove_duplicates=True, save_data=True
+    subset="GB",
+    usecols=EPC_FEAT_SELECTION,
+    nrows=None,
+    remove_duplicates=True,
+    save_data=True,
 ):
     """Load and preprocess the EPC data.
 
@@ -128,6 +132,9 @@ def load_and_preprocess_epc_data(
         List of features/columns to load from EPC dataset.
         By default, a pre-selected list of features (specified in the config file) is used.
         If None, then all features will be loaded.
+
+    nrows : int, default=None
+        Number of rows of file to read.
 
     remove_duplicates : bool, default=True
         Whether or not to remove duplicates.
@@ -149,7 +156,7 @@ def load_and_preprocess_epc_data(
         )
         save_data = False
 
-    epc_df = epc_data.load_raw_epc_data(subset=subset, usecols=usecols)
+    epc_df = epc_data.load_raw_epc_data(subset=subset, usecols=usecols, nrows=nrows)
     epc_df = preprocess_data(
         epc_df, remove_duplicates=remove_duplicates, save_data=save_data
     )
