@@ -7,6 +7,7 @@ Adding new features to EPC dataset.
 
 # Import
 import pandas as pd
+import numpy as np
 import re
 from hashlib import md5
 
@@ -122,10 +123,7 @@ def get_new_epc_rating_features(df):
     df.loc[
         ((df.DIFF_POT_ENERGY_RATING < 0.0) | (df.DIFF_POT_ENERGY_RATING > 7)),
         "DIFF_POT_ENERGY_RATING",
-    ] = "unknown"
-
-    # Change NaN to "unknown"
-    df["DIFF_POT_ENERGY_RATING"].fillna("unknown")
+    ] = np.nan
 
     return df
 
@@ -405,7 +403,7 @@ def get_date_features(df):
 
     df["ENTRY_YEAR"] = df["INSPECTION_DATE"].apply(get_year)
     df["ENTRY_YEAR_INT"] = df["ENTRY_YEAR"].apply(get_date_as_int)
-    df["DATE_INT"] = df["INSPECTION_DATE"].apply(get_date_as_int)
+    df["INSPECTION_DATE_AS_NUM"] = df["INSPECTION_DATE"].apply(get_date_as_int)
 
     return df
 
@@ -453,7 +451,7 @@ def filter_by_year(df, building_reference, year, up_to=True, selection=None):
     if selection in ["first entry", "latest entry"]:
 
         df = (
-            df.sort_values("DATE_INT", ascending=True)
+            df.sort_values("INSPECTION_DATE_AS_NUM", ascending=True)
             .drop_duplicates(
                 subset=[building_reference], keep=selection_dict[selection]
             )
