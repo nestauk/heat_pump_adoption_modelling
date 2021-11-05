@@ -51,6 +51,9 @@ def get_unique_building_id(df):
     short_code: int
         Unique ID."""
 
+    if ("ADDRESS1" not in df.columns) or ("POSTCODE" not in df.columns):
+        return df
+
     # Remove samples with no address
     df.dropna(subset=["ADDRESS1"], inplace=True)
 
@@ -108,22 +111,26 @@ def get_new_epc_rating_features(df):
         "unknown": "unknown",
     }
 
+    if "CURRENT_ENERGY_RATING" not in df.columns:
+        return df
+
     # EPC rating in number instead of letter
     df["CURR_ENERGY_RATING_NUM"] = df.CURRENT_ENERGY_RATING.map(rating_dict)
 
     # EPC rating in category (A-B, C-D or E-G)
     df["ENERGY_RATING_CAT"] = df.CURRENT_ENERGY_RATING.map(EPC_cat_dict)
 
-    # Numerical difference between current and potential energy rating (A-G)
-    df["DIFF_POT_ENERGY_RATING"] = (
-        df.POTENTIAL_ENERGY_RATING.map(rating_dict) - df["CURR_ENERGY_RATING_NUM"]
-    )
+    if "POTENTIAL_ENERGY_RATING" in df.columns:
 
-    # Filter out unreasonable values (below 0 and above 7)
-    df.loc[
-        ((df.DIFF_POT_ENERGY_RATING < 0.0) | (df.DIFF_POT_ENERGY_RATING > 7)),
-        "DIFF_POT_ENERGY_RATING",
-    ] = np.nan
+        # Numerical difference between current and potential energy rating (A-G)
+        df["DIFF_POT_ENERGY_RATING"] = (
+            df.POTENTIAL_ENERGY_RATING.map(rating_dict) - df["CURR_ENERGY_RATING_NUM"]
+        )
+        # Filter out unreasonable values (below 0 and above 7)
+        df.loc[
+            ((df.DIFF_POT_ENERGY_RATING < 0.0) | (df.DIFF_POT_ENERGY_RATING > 7)),
+            "DIFF_POT_ENERGY_RATING",
+        ] = np.nan
 
     return df
 
@@ -203,6 +210,9 @@ def get_heating_features(df, fine_grained_HP_types=False):
     df : pandas.DataFrame
         Updated dataframe with heating system and source."""
 
+    if "MAINHEAT_DESCRIPTION" not in df.columns:
+        return df
+
     # Collections
     heating_system_types = []
     heating_source_types = []
@@ -256,7 +266,7 @@ def get_heating_features(df, fine_grained_HP_types=False):
 
             elif "community heat pump" in heating:
                 system_type = "community heat pump"
-                source_type = "eletric"
+                source_type = "electric"
                 has_hp = True
 
             elif "heat pump" in heating:
@@ -400,6 +410,9 @@ def get_date_features(df):
     ---------
     df : pandas.DataFrame
         Dataframe with new features."""
+
+    if "INSPECTION_DATE" not in df.columns:
+        return df
 
     df["ENTRY_YEAR"] = df["INSPECTION_DATE"].apply(get_year)
     df["ENTRY_YEAR_INT"] = df["ENTRY_YEAR"].apply(get_date_as_int)
@@ -561,6 +574,17 @@ def get_building_entry_feature(df, feature):
     return df
 
 
+def get_building_entries(df):
+
+    if "BUILDING_REFERENCE_NUMBER" in df.columns:
+        df = get_building_entry_feature(df, "BUILDING_REFERENCE_NUMBER")
+
+    if "BUILDING_ID" in df.columns:
+        df = get_building_entry_feature(df, "BUILDING_ID")
+
+    return df
+
+
 def get_additional_features(df):
     """Add new features to the EPC dataset.
     The new features include information about the inspection and entry date,
@@ -579,10 +603,10 @@ def get_additional_features(df):
     df = get_date_features(df)
 
     df = get_unique_building_id(df)
-    df = get_building_entry_feature(df, "BUILDING_REFERENCE_NUMBER")
-    df = get_building_entry_feature(df, "BUILDING_ID")
+    df = get_building_entries(df)
 
     df = get_heating_features(df)
+
     df = get_new_epc_rating_features(df)
 
     return df

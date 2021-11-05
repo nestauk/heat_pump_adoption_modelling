@@ -25,7 +25,7 @@ def reformat_postcode(df):
     df : pandas.Dataframe
         Dataframe with reformatted POSTCODE."""
 
-    df["POSTCODE"] = df["POSTCODE"].str.replace(r" ", "")
+    df["POSTCODE"] = df["POSTCODE"].str.upper().replace(r" ", "")
 
     return df
 
@@ -524,24 +524,27 @@ def clean_epc_data(df):
             else:
                 df[column] = df[column].replace(invalid, "unknown")
 
-    for column in make_numeric:
-        df[column] = pd.to_numeric(df[column])
-        df[column] = df[column].mask(df[column] < 0.0)
+    for column in df.columns:
+        if column in make_numeric:
+            df[column] = pd.to_numeric(df[column])
+            df[column] = df[column].mask(df[column] < 0.0)
 
-    df["CONSTRUCTION_AGE_BAND_ORIGINAL"] = df["CONSTRUCTION_AGE_BAND"].apply(
-        standardise_constr_age_original
-    )
+    if "CONSTRUCTION_AGE_BAND" in df.columns:
+        df["CONSTRUCTION_AGE_BAND_ORIGINAL"] = df["CONSTRUCTION_AGE_BAND"].apply(
+            standardise_constr_age_original
+        )
+
+    # Reformat postcode
+    if "POSTCODE" in df.columns:
+        df = reformat_postcode(df)
 
     # Clean up features
     for column in df.columns:
         if column in column_to_function_dict.keys():
             df[column] = df[column].apply(column_to_function_dict[column])
 
-    # Upper case psotcode
-    if "POSTCODE" in df.columns:
-        df["POSTCODE"] = df["POSTCODE"].str.upper()
-
-    # Limit max value for NUMBER_HABITABLE_ROOMS
-    df = cap_feature_values(df, "NUMBER_HABITABLE_ROOMS", cap_n=10)
+    if "NUMBER_HABITABLE_ROOMS" in df.columns:
+        # Limit max value for NUMBER_HABITABLE_ROOMS
+        df = cap_feature_values(df, "NUMBER_HABITABLE_ROOMS", cap_n=10)
 
     return df
