@@ -78,9 +78,11 @@ def preprocess_data(df, remove_duplicates=True, save_data=True, verbose=True):
     # --------------------------------
 
     df = data_cleaning.clean_epc_data(df)
+    df.reset_index(inplace=True)
     processing_steps.append(("After cleaning", df.shape[0], df.shape[1]))
 
     df = feature_engineering.get_additional_features(df)
+    df.reset_index(inplace=True)
     processing_steps.append(("After adding features", df.shape[0], df.shape[1]))
 
     if save_data:
@@ -96,6 +98,8 @@ def preprocess_data(df, remove_duplicates=True, save_data=True, verbose=True):
         df = feature_engineering.filter_by_year(
             df, "BUILDING_ID", None, selection="latest entry"
         )
+        df.reset_index(inplace=True)
+
         processing_steps.append(("After removing duplicates", df.shape[0], df.shape[1]))
 
         if save_data:
