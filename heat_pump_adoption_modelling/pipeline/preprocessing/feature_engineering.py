@@ -55,7 +55,7 @@ def get_unique_building_id(df):
     df.dropna(subset=["ADDRESS1"], inplace=True)
 
     # Create unique address and building ID
-    df["UNIQUE_ADDRESS"] = df["ADDRESS1"] + df["POSTCODE"]
+    df["UNIQUE_ADDRESS"] = df["ADDRESS1"].str.upper() + df["POSTCODE"].str.upper()
     df["BUILDING_ID"] = df["UNIQUE_ADDRESS"].apply(short_hash)
 
     return df
