@@ -2,6 +2,9 @@
 """Cleaning and standardising the EPC dataset."""
 
 from heat_pump_adoption_modelling import PROJECT_DIR, get_yaml_config, Path
+from numpy.core import numeric
+import pandas as pd
+import numpy as np
 
 # Load config file
 config = get_yaml_config(
@@ -62,6 +65,103 @@ def date_formatter(date):
     formatted_date = year + "/" + month + "/" + day
 
     return formatted_date
+
+
+def standardise_solar_water_heating_flag(flag):
+
+    flag_dict = {
+        "N": "False",
+        "unknown": "unknown",
+        "Y": "True",
+        "false": "False",
+        "true": "True",
+    }
+
+    if flag not in flag_dict.keys():
+        return "unknown"
+    else:
+        return flag_dict[flag]
+
+
+def standardise_floor_level(floor_level):
+
+    floor_level_dict = {
+        "-1.0": -1,
+        "Basement": -1,
+        "Ground": 0,
+        "0.0": 0,
+        "00": 0,
+        "0": 0,
+        "1st": 1,
+        "1.0": 1,
+        "1": 1,
+        "01": 1,
+        "2nd": 2,
+        "2.0": 2,
+        "2": 2,
+        "02": 2,
+        "3rd": 3,
+        "3.0": 2,
+        "3": 3,
+        "03": 3,
+        "04": 4,
+        "4th": 4,
+        "4.0": 4,
+        "4": 4,
+        "05": 5,
+        "5th": 5,
+        "5.0": 5,
+        "5": 5,
+        "06": 6,
+        "6th": 6,
+        "6.0": 6,
+        "6": 6,
+        "07": 7,
+        "7th": 7,
+        "7.0": 7,
+        "7": 7,
+        "08": 8,
+        "8th": 8,
+        "8.0": 8,
+        "8": 8,
+        "09": 9,
+        "9th": 9,
+        "9.0": 9,
+        "9": 9,
+        "10": "10+",
+        "10th": "10+",
+        "10.0": "10+",
+        "10": "10+",
+        "11th": "10+",
+        "12th": "10+",
+        "13th": "10+",
+        "14th": "10+",
+        "15th": "10+",
+        "16th": "10+",
+        "17th": "10+",
+        "18th": "10+",
+        "19th": "10+",
+        "20th": "10+",
+        "11": "10+",
+        "12": "10+",
+        "13": "10+",
+        "14": "10+",
+        "15": "10+",
+        "16": "10+",
+        "17": "10+",
+        "18": "10+",
+        "19": "10+",
+        "20": "10+",
+        "21st or above": "10+",
+        "20+": "10+",
+        "top floor": "10+",
+        "mid floor": "5",
+    }
+
+    if floor_level not in floor_level_dict.keys():
+        return "unknown"
+    else:
+        return floor_level_dict[floor_level]
 
 
 def standardise_tenure(tenure):
@@ -324,14 +424,14 @@ def cap_feature_values(df, feature, cap_n=10):
      df : pandas.DataFrame
         Dataframe with capped values."""
 
-    # Change 'unknown' temporarily to -1
-    df[feature].replace({"unknown": -1}, inplace=True)
+    # # Change 'unknown' temporarily to -1
+    # df[feature].replace({"unknown": -1}, inplace=True)
 
     # Cap at given limit (i.e. 10)
-    df.loc[(df[feature] >= cap_n), feature] = str(cap_n) + "+"
+    df.loc[(df[feature] >= cap_n), feature] = cap_n  # str(cap_n) + "+"
 
-    # Change back to 'unknown'
-    df[feature].replace({-1: "unknown"}, inplace=True)
+    # # Change back to 'unknown'
+    # df[feature].replace({-1: "unknown"}, inplace=True)
 
     return df
 
@@ -360,24 +460,73 @@ def clean_epc_data(df):
         "HOT_WATER_ENERGY_EFF": standardise_efficiency,
         "LIGHTING_ENERGY_EFF": standardise_efficiency,
         "LOCAL_AUTHORITY_LABEL": clean_local_authority,
+        "SOLAR_WATER_HEATING_FLAG": standardise_solar_water_heating_flag,
+        "FLOOR_LEVEL": standardise_floor_level,
     }
 
-    feat_to_invalid_value_dict = {
-        "CURRENT_ENERGY_RATING": "INVALID!",
-        "POTENTIAL_ENERGY_RATING": "INVALID!",
-        "BUILT_FORM": "NO DATA!",
-    }
+    numeric_features = [
+        "ENERGY_CONSUMPTION_CURRENT",
+        "TOTAL_FLOOR_AREA",
+        "CURRENT_ENERGY_EFFICIENCY",
+        "CO2_EMISS_CURR_PER_FLOOR_AREA",
+        "HEATING_COST_CURRENT",
+        "HEATING_COST_POTENTIAL",
+        "HOT_WATER_COST_CURRENT",
+        "HOT_WATER_COST_POTENTIAL",
+        "LIGHTING_COST_CURRENT",
+        "LIGHTING_COST_POTENTIAL",
+        "WIND_TURBINE_COUNT",
+        "MAIN_HEATING_CONTROLS",
+        "MULTI_GLAZE_PROPORTION",
+        "FLOOR_HEIGHT",
+        "EXTENSION_COUNT",
+        "NUMBER_HEATED_ROOMS",
+        "FLOOR_LEVEL",
+        "NUMBER_HABITABLE_ROOMS",
+        "CO2_EMISSIONS_CURRENT",
+    ]
 
-    # Map NaN and other "no data" values to unknown
-    for column in df.columns:
-        df[column] = df[column].fillna("unknown")
+    invalid_values = [
+        "unknown",
+        "%%MAINHEATCONTROL%%",
+        "NODATA!",
+        "unknown",
+        "NO DATA!",
+        "INVALID!",
+        "not defined",
+        "none of the above",
+        "no data!",
+        "nodata!",
+        "Not applicable",
+        "Not Defined",
+        "Unknown",
+        "not recorded",
+        np.nan,
+    ]
+
+    make_numeric = [
+        "WIND_TURBINE_COUNT",
+        "MAIN_HEATING_CONTROLS",
+        "MULTI_GLAZE_PROPORTION",
+        "FLOOR_HEIGHT",
+        "EXTENSION_COUNT",
+        "NUMBER_HEATED_ROOMS",
+        "NUMBER_HABITABLE_ROOMS",
+    ]
 
     # Replace values such as INVALID! or NODATA!
     for column in df.columns:
-        if column in feat_to_invalid_value_dict.keys():
-            df[column] = df[column].replace(
-                feat_to_invalid_value_dict[column], "unknown"
-            )
+        for invalid in invalid_values:
+            if column in numeric_features:
+                df[column] = df[column].replace(invalid, np.nan)
+                if column not in ["WIND_TURBINE_COUNT", "FLOOR_LEVEL"] + make_numeric:
+                    df[column] = df[column].mask(df[column] < 0.0)
+            else:
+                df[column] = df[column].replace(invalid, "unknown")
+
+    for column in make_numeric:
+        df[column] = pd.to_numeric(df[column])
+        df[column] = df[column].mask(df[column] < 0.0)
 
     df["CONSTRUCTION_AGE_BAND_ORIGINAL"] = df["CONSTRUCTION_AGE_BAND"].apply(
         standardise_constr_age_original
@@ -386,8 +535,7 @@ def clean_epc_data(df):
     # Clean up features
     for column in df.columns:
         if column in column_to_function_dict.keys():
-            cleaning_function = column_to_function_dict[column]
-            df[column] = df[column].apply(cleaning_function)
+            df[column] = df[column].apply(column_to_function_dict[column])
 
     # Upper case psotcode
     if "POSTCODE" in df.columns:
