@@ -6,6 +6,7 @@ from numpy.core import numeric
 import pandas as pd
 import numpy as np
 
+
 # Load config file
 config = get_yaml_config(
     Path(str(PROJECT_DIR) + "/heat_pump_adoption_modelling/config/base.yaml")
@@ -83,7 +84,25 @@ def standardise_solar_water_heating_flag(flag):
         return flag_dict[flag]
 
 
-def standardise_floor_level(floor_level):
+def standardise_floor_level(floor_level, as_numeric=True):
+    """Standardise floor level.
+    By default, the floor level is given as a numeric value (between -1 and 10).
+    Alternatively, the floor level can be returned as one of the following categories:
+    -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10+
+
+    Parameters
+    ----------
+    floor_level : str
+        Floor level.
+
+    as_numeric : bool, default=True
+        Return floor level as numeric value.
+        If set to False, return value as category.
+
+    Return
+    ----------
+    standardised floor level : int, or str
+        Standardised floor level."""
 
     floor_level_dict = {
         "-1.0": -1,
@@ -128,40 +147,45 @@ def standardise_floor_level(floor_level):
         "9th": 9,
         "9.0": 9,
         "9": 9,
-        "10": "10+",
-        "10th": "10+",
-        "10.0": "10+",
-        "10": "10+",
-        "11th": "10+",
-        "12th": "10+",
-        "13th": "10+",
-        "14th": "10+",
-        "15th": "10+",
-        "16th": "10+",
-        "17th": "10+",
-        "18th": "10+",
-        "19th": "10+",
-        "20th": "10+",
-        "11": "10+",
-        "12": "10+",
-        "13": "10+",
-        "14": "10+",
-        "15": "10+",
-        "16": "10+",
-        "17": "10+",
-        "18": "10+",
-        "19": "10+",
-        "20": "10+",
-        "21st or above": "10+",
-        "20+": "10+",
-        "top floor": "10+",
-        "mid floor": "5",
+        "10": 10,
+        "10th": 10,
+        "10.0": 10,
+        "11th": 10,
+        "12th": 10,
+        "13th": 10,
+        "14th": 10,
+        "15th": 10,
+        "16th": 10,
+        "17th": 10,
+        "18th": 10,
+        "19th": 10,
+        "20th": 10,
+        "11": 10,
+        "12": 10,
+        "13": 10,
+        "14": 10,
+        "15": 10,
+        "16": 10,
+        "17": 10,
+        "18": 10,
+        "19": 10,
+        "20": 10,
+        "21st or above": 10,
+        "20+": 10,
+        "top floor": 10,
+        "mid floor": 5,
     }
 
-    if floor_level not in floor_level_dict.keys():
-        return "unknown"
+    if floor_level in floor_level_dict.keys():
+        if as_numeric:
+            return floor_level_dict[floor_level]
+        else:
+            category = str(floor_level_dict[floor_level])
+            category = "10+" if category == "10" else category
+            return category
     else:
-        return floor_level_dict[floor_level]
+        standard_floor_level = np.nan if as_numeric else "unknown"
+        return standard_floor_level
 
 
 def standardise_tenure(tenure):
@@ -332,6 +356,18 @@ def standardise_constr_age(age, adjust_age_bands=True):
 
 
 def standardise_constr_age_original(age):
+    """Standardise construction age bands.
+
+    Parameters
+    ----------
+    age : str
+        Raw construction age.
+
+    Return
+    ----------
+    Standardised age construction band : str
+        Standardised age construction band."""
+
     return standardise_constr_age(age, adjust_age_bands=False)
 
 
@@ -383,6 +419,85 @@ def standardise_efficiency(efficiency):
     return efficiency_mapping[efficiency]
 
 
+def standardise_glazed_area(area, as_numeric=True):
+    """Standardise glazed area type.
+    By default, the glazed area is given as a numeric value (between 1 and 5).
+    Alternatively, the glazed area can be returned as one of the following categories:
+    Normal, More Than Typical, Much More Than Typical, Less Than Typical, Much Less Than Typical, unknown.
+
+    Parameters
+    ----------
+    area : str
+        Glazed area type.
+
+    as_numeric : bool, default=True
+        Return glazed area as numeric value.
+        If set to False, return value as category.
+
+    Return
+    ----------
+    standardised glazed area : int, or str
+        Standardised glazed area."""
+
+    glazed_area_dict = {
+        "1": 1,
+        "3": 3,
+        "2": 2,
+        "5": 5,
+        "4": 4,
+        "0": np.nan,
+        "Normal": 3,
+        "unknown": np.nan,
+        "More Than Typical": 4,
+        "Much More Than Typical": 5,
+        "Less Than Typical": 2,
+        "Much Less Than Typical": 1,
+        "Not Defined": np.nan,
+        np.nan: np.nan,
+    }
+
+    glazed_area_cat_dict = {
+        5: "Much More Than Typical",
+        4: "More Than Typical",
+        3: "Normal",
+        2: "Less Than Typical",
+        1: "Much Less Than Typical",
+        np.nan: "unknown",
+    }
+
+    if area in glazed_area_dict[area].keys():
+        if as_numeric:
+            return glazed_area_dict[area]
+        else:
+            return glazed_area_cat_dict[glazed_area_dict[area]]
+    else:
+        standardised_area = np.nan if as_numeric else "unknown"
+        return standardised_area
+
+
+def clean_photo_supply(df):
+    """Extract photo supply area from length descriptions.
+
+    Paramters
+    ----------
+    df : pandas.DataFrame
+        Given dataframe.
+
+    Return
+    ---------
+     df : pandas.DataFrame
+        Dataframe with fixed photo supply column."""
+
+    # Set all values mentioning "Peak Power" to "unknown" because they do not contain photo supply area
+    df["PHOTO_SUPPLY"] = df["PHOTO_SUPPLY"].str.replace(
+        r".*Peak Power.*", "unknown", regex=True
+    )
+
+    # Extract photo supply area from value
+    df["PHOTO_SUPPLY"] = df["PHOTO_SUPPLY"].str.extract(r"(\d+)[\%|\.d$]").astype(float)
+    return df
+
+
 def clean_local_authority(local_authority):
     """Clean local authority label.
 
@@ -424,14 +539,8 @@ def cap_feature_values(df, feature, cap_n=10):
      df : pandas.DataFrame
         Dataframe with capped values."""
 
-    # # Change 'unknown' temporarily to -1
-    # df[feature].replace({"unknown": -1}, inplace=True)
-
     # Cap at given limit (i.e. 10)
     df.loc[(df[feature] >= cap_n), feature] = cap_n  # str(cap_n) + "+"
-
-    # # Change back to 'unknown'
-    # df[feature].replace({-1: "unknown"}, inplace=True)
 
     return df
 
@@ -537,6 +646,9 @@ def clean_epc_data(df):
     # Reformat postcode
     if "POSTCODE" in df.columns:
         df = reformat_postcode(df)
+
+    if "PHOTO_SUPPLY" in df.columns:
+        df = clean_photo_supply(df)
 
     # Clean up features
     for column in df.columns:
