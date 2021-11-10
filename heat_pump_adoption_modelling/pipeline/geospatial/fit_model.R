@@ -13,6 +13,7 @@ library(INLA)         # for model fitting
 library(inlabru)      # utilities for post-processing model outputs
 library(brinla)
 library(sf)
+library(ggplot2)
 
 # x <- fread('Data/EPC Records - cleansed and deduplicated .csv')
 # y <- fread('Data/EPC_GB_preprocessed_and_deduplicated.csv')
@@ -442,8 +443,8 @@ model <- n_heat_pumps ~ 1 +
 x8 <- x7 %>%
   mutate(better_household_estimate = pmax(n_households, n_heat_pumps))
 
-lmod <- lm(n_heat_pumps ~ median_floor_area + median_property_age + p_owner_occupied + median_hab_rooms + p_detached_house, x8)
-summary(lmod)
+# lmod <- lm(n_heat_pumps ~ median_floor_area + median_property_age + p_owner_occupied + median_hab_rooms + p_detached_house, x8)
+# summary(lmod)
 
 # cheap_approximation <- inla(model,
 #                             family='zeroinflatedpoisson0',
@@ -457,7 +458,7 @@ summary(lmod)
 #                             verbose=TRUE)
 
 cheap_approximation <- inla(model,
-                            family='binomial',
+                            family='zeroinflatedbinomial0',
                             Ntrials=better_household_estimate,
                             data=x8,
                             control.inla=list(diagonal=100,
@@ -477,18 +478,18 @@ model_fit <- cheap_approximation
 
 # fit the model using the cheap approximation estimates as starting values
 # note: this step takes much longer
-model_fit <- inla(model,
-                  family='binomial',
-                  data=x8,
-                  Ntrials=better_household_estimate,
-                  control.inla=list(diagonal=10),
-                  control.fixed = list(prec.intercept = 0.1),
-                  control.compute=control$compute,
-                  control.predictor=control$predictor,
-                  control.results=control$results,
-                  control.mode=list(result=cheap_approximation,
-                                    restart=TRUE),
-                  verbose=TRUE)
+# model_fit <- inla(model,
+#                   family='binomial',
+#                   data=x8,
+#                   Ntrials=better_household_estimate,
+#                   control.inla=list(diagonal=10),
+#                   control.fixed = list(prec.intercept = 0.1),
+#                   control.compute=control$compute,
+#                   control.predictor=control$predictor,
+#                   control.results=control$results,
+#                   control.mode=list(result=cheap_approximation,
+#                                     restart=TRUE),
+#                   verbose=TRUE)
 
 ###################################
 # posterior distributions summary #
@@ -584,6 +585,22 @@ dataset %>%
   dplyr::select(postcode, median_floor_area, median_property_age, p_dt_glaz, n_detached_house, n_owner_occupied) %>%
   filter(postcode=='NP7 9EY')
 
+
+# plots for EST
+plot(dataset$median_floor_area, dataset$fitted, col=ifelse(dataset$median_property_age<=2, '#0000FF25','#FF000025'), pch=16, cex=.75)
+
+ggplot(dataset, aes(x=median_floor_area, y=fitted, colour=ifelse(median_property_age<=2, 'Pre-1930','Post-1930'))) +
+  geom_point(alpha=0.3) +
+  labs(x = "Median floor area", y = "Fitted probability", colour = "Median property age")
+  
+
+ggplot(dataset, aes(x=median_hab_rooms, y=fitted)) +
+  geom_point(alpha=0.3) +
+  geom_smooth(method='loess',colour='#0000FF75',width=4)
+
+
+
+
 # extract the exponentiated spatial residuals
 # and add them to the dataset
 exp_residuals <- numeric(length(model_fit$marginals.random$postcode_n))
@@ -620,11 +637,11 @@ dataset <- left_join(dataset,
 geo_df <- dataset
 coordinates(geo_df) <- ~easting+northing
 
-map_np_utm <- st_transform(st_as_sf(map_np), "+init=epsg:27700")
+map_utm <- st_transform(st_as_sf(regions_map), "+init=epsg:27700")
 
-plot(map_np_utm$geometry)
+plot(map_utm$geometry)
 points(geo_df,pch=16,cex=.5,
-       col=ifelse(geo_df$n_heat_pumps>0,'#FF000075','#00000025'))
+       col=ifelse(geo_df$n_heat_pumps>0,'#FF000075','#00000005'))
 
 # # obtain the quantiles of the exponentiated residuals distribution
 # # residuals are constant for each postcode, extract only one line each
@@ -640,7 +657,10 @@ exp_residuals_quantiles <- quantile(dataset$exp_residuals,
 # produce plots #
 #################
 
+# come back and  fix this
 exp_residuals %>%
+  mutate(temp = substr(postcode_sector, 1, 3)) %>% 
+  filter(temp=='NP7') %>% 
   group_by(postcode_sector) %>%
   mutate(q1=quantile(exp_residuals,.25),
          q2=quantile(exp_residuals,.5),
@@ -671,28 +691,42 @@ prop_q_by_sector <- dataset %>%
             prop_l_q2.5=mean(exp_residuals<exp_residuals_quantiles[lower_quantile]),
             prop_g_q97.5=mean(exp_residuals>exp_residuals_quantiles[upper_quantile]))
 
-map_np_final <- map_np_utm %>%
+map_final <- map_utm %>%
   left_join(prop_q_by_sector,by=c('name'='postcode_sector'))
 
 ## deal with NAs: to be reviewed to make sure what these are ### DOUBLE-CHECK
-map_np_final$prop_l_q2.5 <- replace_na(map_np_final$prop_l_q2.5,
-                                       mean(map_np_final$prop_l_q2.5,na.rm=TRUE))
-map_np_final$prop_g_q97.5 <- replace_na(map_np_final$prop_g_q97.5,
-                                       mean(map_np_final$prop_g_q97.5,na.rm=TRUE))
+map_final$prop_l_q2.5 <- replace_na(map_final$prop_l_q2.5,
+                                       mean(map_final$prop_l_q2.5,na.rm=TRUE))
+map_final$prop_g_q97.5 <- replace_na(map_final$prop_g_q97.5,
+                                       mean(map_final$prop_g_q97.5,na.rm=TRUE))
 
 # define a scaling factor for the grey scale: the max observed proportion
 # is slightly less than 0.2, rescaling aids visualisation
 scale_factor <- .3
 
-plot(map_np_final['prop_l_q2.5'],
+plot(map_final['prop_l_q2.5'],
      main='higher-than-average adopters',
      #border='black',
-     col=grey(1-map_np_final$prop_l_q2.5))
+     col=grey(1-map_final$prop_l_q2.5))
 
-plot(map_np_final['prop_g_q97.5'],
+plot(map_final['prop_g_q97.5'],
      main='lower-than-average adopters',
      #border='black',
-     col=grey(1-map_np_final$prop_g_q97.5))
+     col=grey(1-map_final$prop_g_q97.5))
+
+
+fitted_map = map_utm %>% left_join(average_fitted, by=c('name'='postcode_sector'))
+fitted_map$avg_fitted = replace_na(fitted_map$avg_fitted,
+           mean(fitted_map$avg_fitted,na.rm=TRUE))
+plot(fitted_map['avg_fitted'],
+     main='fitted probabilities',
+     col=rev(leaflet::colorNumeric(palette = "YlOrRd", ## double-check colour palette
+                                   domain = fitted_map$avg_fitted)(fitted_map$avg_fitted)))
+
+range=range(fitted_map$avg_fitted)
+plot(fitted_map['avg_fitted'],
+     main='Average fitted probabilities by postcode sector',
+     col=rgb(red=1, green=0, blue=0, alpha=(fitted_map$avg_fitted - range[1])/(range[2] - range[1])))
 
 ### implement
 ###   i) estimation of exceedance probabilities # DONE
@@ -701,7 +735,7 @@ plot(map_np_final['prop_g_q97.5'],
 
 
 ## exceedance probabilities
-exc_p_threshold <- 0.001
+exc_p_threshold <- 0.09
 
 dataset$exceedance_p <- sapply(model_fit$marginals.fitted.values,
               function(x) {
@@ -709,17 +743,29 @@ dataset$exceedance_p <- sapply(model_fit$marginals.fitted.values,
                 }
               )
 
-map_np_final <- left_join(map_np_final, dataset %>%
+map_final <- left_join(map_final, dataset %>%
                             group_by(postcode_sector) %>%
                             summarise(avg_exc_p=mean(exceedance_p)) %>%
                             dplyr::select(postcode_sector,avg_exc_p),
                           by=c('name'='postcode_sector'))
 
 ## deal with NAs: to be reviewed to make sure what these are ### DOUBLE-CHECK
-map_np_final$avg_exc_p <- replace_na(map_np_final$avg_exc_p,
-                                       mean(map_np_final$avg_exc_p,na.rm=TRUE))
-plot(map_np_final['avg_exc_p'],
-     main=paste('exceedance probabilities - threshold=',exc_p_threshold),
+map_final$avg_exc_p <- replace_na(map_final$avg_exc_p,
+                                       mean(map_final$avg_exc_p,na.rm=TRUE))
+pthreshrange = range(map_final$avg_exc_p)
+
+plot(map_final['avg_exc_p'],
+     main=paste('Average exceedance probabilities - threshold = ', exc_p_threshold),
 #     border='aquamarine4',
      col=rev(leaflet::colorNumeric(palette = "YlOrRd", ## double-check colour palette
-                               domain = map_np_final$avg_exc_p)(map_np_final$avg_exc_p)))
+                               domain = map_final$avg_exc_p)(map_final$avg_exc_p)))
+
+plot(map_final['avg_exc_p'],
+ main=paste('Average exceedance probabilities - threshold =', exc_p_threshold),
+ #     border='aquamarine4',
+ col=rgb(red=0.9, green=0.4, blue=0.2, alpha=(map_final$avg_exc_p - pthreshrange[1])/(pthreshrange[2] - pthreshrange[1]))
+)
+
+
+
+
