@@ -361,13 +361,13 @@ def get_year(date):
     year : int
         Year derived from date."""
 
-    if date == "unknown":
-        return "unknown"
+    if date is np.nan or date == "unknown":
+        return np.nan
 
     year = date.split("/")[0]
 
     if len(year) != 4:
-        return "unknown"
+        return np.nan
 
     return int(year)
 
@@ -386,10 +386,10 @@ def get_date_as_int(date):
     date : int
         Date as integer."""
 
-    if isinstance(date, int):
+    if isinstance(date, float):
         return date
 
-    if date == "unknown":
+    if date is np.nan or date == "unknown":
         return -1
 
     # Remove delimiter
@@ -606,7 +606,6 @@ def get_additional_features(df):
     df = get_building_entries(df)
 
     df = get_heating_features(df)
-
     df = get_new_epc_rating_features(df)
 
     return df
