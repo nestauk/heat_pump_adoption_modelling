@@ -465,7 +465,7 @@ def standardise_glazed_area(area, as_numeric=True):
         np.nan: "unknown",
     }
 
-    if area in glazed_area_dict[area].keys():
+    if area in glazed_area_dict.keys():
         if as_numeric:
             return glazed_area_dict[area]
         else:
@@ -571,6 +571,7 @@ def clean_epc_data(df):
         "LOCAL_AUTHORITY_LABEL": clean_local_authority,
         "SOLAR_WATER_HEATING_FLAG": standardise_solar_water_heating_flag,
         "FLOOR_LEVEL": standardise_floor_level,
+        "GLAZED_AREA": standardise_glazed_area,
     }
 
     numeric_features = [
