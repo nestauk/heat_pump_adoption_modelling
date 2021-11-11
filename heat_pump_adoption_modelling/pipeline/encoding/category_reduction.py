@@ -79,7 +79,7 @@ feature_red_dict = {
 }
 
 
-def category_reduction(df, feature_red_dict=feature_red_dict):
+def reduce_number_of_categories(df, feature_red_dict=feature_red_dict):
     """Reduce the number of categories for categorical features
     by mapping some values to the same category.
     For example for GLAZED_TYPE or ENERGY_TARIFF.
