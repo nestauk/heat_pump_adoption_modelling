@@ -366,6 +366,7 @@ def get_year(date):
 
     year = date.split("/")[0]
 
+    # If year format doesn't match
     if len(year) != 4:
         return np.nan
 
@@ -386,9 +387,11 @@ def get_date_as_int(date):
     date : int
         Date as integer."""
 
+    # If already numeric, return that
     if isinstance(date, float):
         return date
 
+    # Handle unknown/NaN
     if date is np.nan or date == "unknown":
         return -1
 

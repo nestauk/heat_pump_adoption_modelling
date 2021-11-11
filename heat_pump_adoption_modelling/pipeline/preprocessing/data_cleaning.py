@@ -465,11 +465,14 @@ def standardise_glazed_area(area, as_numeric=True):
         np.nan: "unknown",
     }
 
+    # Standardise (numeric or cat) using dict
     if area in glazed_area_dict.keys():
         if as_numeric:
             return glazed_area_dict[area]
         else:
             return glazed_area_cat_dict[glazed_area_dict[area]]
+
+    # Handle unknown/NaN
     else:
         standardised_area = np.nan if as_numeric else "unknown"
         return standardised_area
