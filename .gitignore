@@ -99,6 +99,7 @@ target/
 
 # Jupyter NB Checkpoints
 .ipynb_checkpoints/
+/heat_pump_adoption_modelling/analysis/Recycling/*
 
 # exclude /inputs and /outputs/data except top-level markdown
 /inputs/*
@@ -113,6 +114,8 @@ target/
 /outputs/EPC_data/preprocessed_data/*
 !/outputs/EPC_data/preprocessed_data
 !/outputs/EPC_data/preprocessed_data/.gitkeep
+
+/outputs/mcs_epc.csv
 
 /outputs/EPC_data/preprocessed_data/Q2_2021/*
 !/outputs/EPC_data/preprocessed_data/Q2_2021
