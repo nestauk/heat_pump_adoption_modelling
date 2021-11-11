@@ -123,16 +123,16 @@ def create_efficiency_mapping(efficiency_set):
             efficiency_map[eff] = 0.0
             continue
 
-        if eff == "":
-            efficiency_map[eff] = 0
-            continue
-
         # Split parts of label (especially for Scotland data)
         eff_parts = [
             part.strip()
             for part in eff.split("|")
             if part.strip() not in ["N/A", "unknown", ""]
         ]
+
+        if not eff_parts:
+            efficiency_map[eff] = 0
+            continue
 
         # Map labels to numeric value and take mean
         eff_value = sum([eff_value_dict[part] for part in eff_parts]) / float(
