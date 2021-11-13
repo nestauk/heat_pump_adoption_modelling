@@ -211,7 +211,6 @@ def plot_feature_coefficients(classifier, feature_names, label_set, title):
     # Get sorted coefficients and feature names
     sorted_coef = classifier.coef_[:, sort_idx]
     sorted_fnames = feature_names[sort_idx]
-    # sorted_fnames = [feature_names[i] for i in sort_idx]
 
     # Make subplots
 
@@ -239,6 +238,8 @@ def plot_feature_coefficients(classifier, feature_names, label_set, title):
         vmin=-2.5,
         vmax=2.5,
     )
+
+    x_axis[0].set_title(title + "\n", fontdict={"fontsize": 30, "fontweight": "medium"})
 
     # Set y ticks (number of classes)
     x_axis[0].set_yticks(range(len(label_set)))
@@ -269,6 +270,8 @@ def plot_feature_coefficients(classifier, feature_names, label_set, title):
         fontsize=20,
     )
 
+    plt.tight_layout()
+
     # Move plot to the right
     x_fig.subplots_adjust(right=RIGHT)
 
@@ -277,8 +280,8 @@ def plot_feature_coefficients(classifier, feature_names, label_set, title):
     cbar = x_fig.colorbar(im_0, cax=cbar_ax)
     cbar.ax.tick_params(labelsize=24)
 
-    plt.title(title)
-    plt.savefig(FIGPATH / title, format="png", dpi=500)
+    # plt.title(title)
+    plt.savefig(FIGPATH / (title + ".png"), format="png", dpi=500)
 
     # Show
     plt.show()
