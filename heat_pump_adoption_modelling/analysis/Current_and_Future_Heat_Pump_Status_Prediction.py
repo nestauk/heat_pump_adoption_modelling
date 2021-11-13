@@ -79,7 +79,7 @@ epc_df.head()
 # ## Categorical Feature Encoding
 
 # %%
-epc_df = category_reduction.category_reduction(epc_df)
+epc_df = category_reduction.reduce_number_of_categories(epc_df)
 
 
 # %%
@@ -118,7 +118,6 @@ ordinal_cat_features = [
     "HOT_WATER_ENERGY_EFF",
     "LIGHTING_ENERGY_EFF",
     "GLAZED_TYPE",
-    # "FLOOR_LEVEL",
     "MAINHEATC_ENERGY_EFF",
     "WALLS_ENERGY_EFF",
     "ROOF_ENERGY_EFF",
@@ -130,7 +129,7 @@ ordinal_cat_features = [
     "ENERGY_RATING_CAT",
 ]
 
-encoded_features = feature_encoding.encode_ordinal_cat_features(
+encoded_features = feature_encoding.ordinal_encode_cat_features(
     encoded_features, ordinal_cat_features
 )
 
@@ -285,7 +284,7 @@ future_hp_df.columns
 # ## Prepare Training and Eval Data
 
 # %%
-static_model = ["Current HP Status", "Future HP Status"][1]
+static_model = ["Current HP Status", "Future HP Status"][0]
 balanced_set = True
 
 
@@ -465,11 +464,10 @@ print(X_train.shape)
 print(model.coef_.shape)
 feature_names = np.array(["PC " + str(num) for num in range(X_train.shape[1])])
 print(feature_names)
-label_set = ["Has HP"]
+label_set = ["HP Installed"]
 
 # Get feature indices sorted by coefficient strength
 sort_idx, _, _ = utils.get_sorted_coefficients(model, feature_names)
-
 # Plot the classifier's coefficients for each feature and label
 plt = utils.plot_feature_coefficients(
     model, feature_names, label_set, static_model + ": Coefficient Contributions PCA"
@@ -484,10 +482,14 @@ X_train, X_test, y_train, y_test = train_test_split(
 model = SGDClassifier(random_state=42)
 model.fit(X_train, y_train)
 
-print(X_train.shape)
-print(model.coef_.shape)
+acc = cross_val_score(model, X_train, y_train, cv=cv, scoring="accuracy")
+f1 = cross_val_score(model, X_train, y_train, cv=cv, scoring="f1")
+print("10-fold Cross Validation\n---------\n")
+print("Accuracy:", round(acc.mean(), 2))
+print("F1 Score:", round(f1.mean(), 2))
+
 feature_names = np.array(X.columns)
-label_set = ["Has HP"]
+label_set = ["HP Installed"]
 
 # Get feature indices sorted by coefficient strength
 sort_idx, _, _ = utils.get_sorted_coefficients(model, feature_names)
@@ -496,6 +498,25 @@ sort_idx, _, _ = utils.get_sorted_coefficients(model, feature_names)
 plt = utils.plot_feature_coefficients(
     model, feature_names, label_set, static_model + ": Coefficient Contributions PCA"
 )
+
+# %%
+# Get sorted coefficients and feature names
+sorted_coef = model.coef_[:, sort_idx]
+sorted_fnames = feature_names[sort_idx]
+
+# %%
+sorted_coef
+
+# %%
+for i in range(len(sorted_fnames)):
+    print(sorted_fnames[i])
+
+
+print()
+for i in range(len(sorted_fnames)):
+    print(str(sorted_coef[0][i]))
+
+# %%
 
 # %%
 
