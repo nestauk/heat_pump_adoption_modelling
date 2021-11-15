@@ -20,13 +20,43 @@ epc_characteristic_fields = [
     "WALLS_ENERGY_EFF",
     "HP_INSTALLED",
 ]
-mcs_path = "inputs/MCS_data/heat pumps 2008 to end of sept 2021 - Copy.xlsx"
+mcs_path = "inputs/MCS_data/mcs_heat_pumps.xlsx"
 epc_path = "outputs/EPC_data/preprocessed_data/Q2_2021/EPC_GB_preprocessed.csv"
+inflation_path = "inputs/data/inflation.csv"
 # TODO: put in config
+
+mcs_colnames_dict = {
+    "Version Number": "version",
+    "Commissioning Date": "date",
+    "Address Line 1": "address_1",
+    "Address Line 2": "address_2",
+    "Address Line 3": "address_3",
+    "Postcode": "postcode",
+    "Local Authority": "local_authority",
+    "Total Installed Capacity": "capacity",
+    "Green Deal Installation?": "green_deal",
+    "Products": "products",
+    "Flow temp/SCOP ": "flow_scop",
+    "Technology Type": "tech_type",
+    " Installation Type": "installation_type",
+    "Installation New at Commissioning Date?": "new",
+    "Renewable System Design": "design",
+    "Annual Space Heating Demand": "heat_demand",
+    "Annual Water Heating Demand": "water_demand",
+    "Annual Space Heating Supplied": "heat_supplied",
+    "Annual Water Heating Supplied": "water_supplied",
+    "Installation Requires Metering?": "metering",
+    "RHI Metering Status": "rhi_status",
+    "RHI Metering Not Ready Reason": "rhi_not_ready",
+    "Number of MCS Certificates": "n_certificates",
+    "Alternative Heating System Type": "alt_type",
+    "Alternative Heating System Fuel Type": "alt_fuel",
+    "Overall Cost": "cost",
+}
 
 
 def load_domestic_hps():
-    """Loads domestic MCS HP installation data from file
+    """Load domestic MCS HP installation data from file
     and performs some cleaning.
 
     Return
@@ -45,58 +75,21 @@ def load_domestic_hps():
                 "Postcode": str,
             },
         )
-        .rename(
-            columns={
-                "Version Number": "version",
-                "Commissioning Date": "date",
-                "Address Line 1": "address_1",
-                "Address Line 2": "address_2",
-                "Address Line 3": "address_3",
-                "Postcode": "postcode",
-                "Local Authority": "local_authority",
-                "Total Installed Capacity": "capacity",
-                "Green Deal Installation?": "green_deal",
-                "Products": "products",
-                "Flow temp/SCOP ": "flow_scop",
-                "Technology Type": "tech_type",
-                " Installation Type": "installation_type",
-                "Installation New at Commissioning Date?": "new",
-                "Renewable System Design": "design",
-                "Annual Space Heating Demand": "heat_demand",
-                "Annual Water Heating Demand": "water_demand",
-                "Annual Space Heating Supplied": "heat_supplied",
-                "Annual Water Heating Supplied": "water_supplied",
-                "Installation Requires Metering?": "metering",
-                "RHI Metering Status": "rhi_status",
-                "RHI Metering Not Ready Reason": "rhi_not_ready",
-                "Number of MCS Certificates": "n_certificates",
-                # "RHI?": "rhi",
-                "Alternative Heating System Type": "alt_type",
-                "Alternative Heating System Fuel Type": "alt_fuel",
-                "Overall Cost": "cost",
-            }
-        )
+        .rename(columns=mcs_colnames_dict)
         .convert_dtypes()
         .drop_duplicates()
     )
 
-    # Make RHI field values easier to use
-    # Commented out as RHI field has disappeared from the most recent MCS data
-    # hps["rhi"] = hps["rhi"].replace(
-    #     {
-    #         "RHI Installation ": True,
-    #         "Not Domestic RHI installation ": False,
-    #         "Unspecified": np.nan,
-    #     }
-    # )
-
     # Filter to domestic installations
     dhps = (
-        hps[hps["installation_type"].isin(["Domestic", "Domestic "])]
+        hps[hps["installation_type"].str.strip() == "Domestic"]
         .drop(columns="installation_type")
         .reset_index(drop=True)
     )
 
+    # Drop records with a newer version
+    # TODO: consider asking for the MCS certificate number field
+    # instead of just using the address
     most_recent_indices = dhps.groupby(["address_1", "address_2", "address_3"])[
         "version"
     ].idxmax()
@@ -104,21 +97,33 @@ def load_domestic_hps():
     dhps = dhps.iloc[most_recent_indices]
 
     # Extract information from product column
-    regex_dict = {
+    product_regex_dict = {
+        "product_id": "MCS Product Number: ([^\|]+)",
         "product_name": "Product Name: ([^\|]+)",
         "manufacturer": "License Holder: ([^\|]+)",
         "flow_temp": "Flow Temp: ([^\|]+)",
         "scop": "SCOP: ([^\)]+)",
     }
 
-    for key, value in regex_dict.items():
-        dhps[key] = [
-            re.search(value, product).group(1).strip() for product in dhps.products
+    for product_feat, regex in product_regex_dict.items():
+        dhps[product_feat] = [
+            re.search(regex, product).group(1).strip() for product in dhps.products
         ]
+
+    # Add RHI field - any "Unspecified" values in rhi_status field signify
+    # that the installation is not for DRHI, missing values are unknown
+    dhps["rhi"] = True
+    dhps.loc[(dhps["rhi_status"] == "Unspecified"), "rhi"] = False
+    dhps["rhi"].mask(dhps["rhi_status"].isna())
 
     # Replace unreasonable cost and capacity values with NA
     dhps["cost"] = dhps["cost"].mask((dhps["cost"] == 0) | (dhps["cost"] > max_cost))
     dhps["capacity"] = dhps["capacity"].mask(dhps["capacity"] > max_capacity)
+    dhps["flow_temp"] = pd.to_numeric(dhps["flow_temp"])
+    dhps["flow_temp"] = dhps["flow_temp"].mask(dhps["flow_temp"] <= 0)
+    dhps["scop"] = pd.to_numeric(dhps["scop"].mask(dhps["scop"] == "Unspecified"))
+    dhps["scop"] = dhps["scop"].mask(dhps["scop"] == 0)
+    dhps["year"] = dhps["date"].dt.year
 
     dhps = dhps.reset_index(drop=True)
 
@@ -126,7 +131,7 @@ def load_domestic_hps():
 
 
 def load_epcs():
-    """Loads relevant columns of EPC records.
+    """Load relevant columns of EPC records.
 
     Return
     ----------
@@ -139,3 +144,14 @@ def load_epcs():
     )
 
     return epcs
+
+
+def load_inflation():
+    inflation = pd.read_csv(PROJECT_DIR / inflation_path).rename(
+        columns={
+            "Year": "year",
+            "Multiplier to Use for 2021\n [Combined] Overall Index": "multiplier",
+        }
+    )
+
+    return inflation

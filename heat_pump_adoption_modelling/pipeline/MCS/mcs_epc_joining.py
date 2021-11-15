@@ -3,7 +3,6 @@
 
 import pandas as pd
 import numpy as np
-import string
 import re
 import recordlinkage as rl
 import time
@@ -17,6 +16,7 @@ from heat_pump_adoption_modelling.pipeline.MCS.load_mcs import (
 
 matching_parameter = 0.7
 merged_path = "outputs/mcs_epc.csv"
+token_length = 8
 # TODO: put this in config
 
 
@@ -48,41 +48,55 @@ def rm_punct(address):
     ----------
     address : str
         Formatted address."""
+
     if (address is pd.NA) | (address is np.nan):
         return ""
     else:
-        # replace / and - with _
-        address = address.replace("/", "_").replace("-", "_")
-        # remove all punctuation other than _
-        address = address.translate(
-            str.maketrans("", "", string.punctuation.replace("_", ""))
-        )
+        # Replace / and - with _
+        address = re.sub(r"[/-]", "_", address)
+        # Remove all punctuation other than _
+        punct_regex = r"[\!\"#\$%&\\\'(\)\*\+,-\./:;<=>\?@\[\]\^`\{|\}~”“]"
+        address = re.sub(punct_regex, "", address)
+
         return address
 
 
-def extract_numeric_tokens(df):
-    """Extract character strings containing numbers
+def extract_token_set(address, postcode):
+    """Extract valid numeric tokens from address string.
+    Numeric tokens are considered to be character strings containing numbers
     e.g. "45", "3a", "4_1".
+    'Valid' is defined as
+    - below a certain token_length (to remove long MPAN strings)
+    - not the inward or outward code of the property's postcode
+    - not the property's postcode with space removed
 
     Parameters
     ----------
-    df : pandas.Dataframe
-        Dataframe with standardised_address field.
+    address : string
+        String from which to extract tokens.
+    postcode : string
+        String used for removal of tokens corresponding to postcode parts.
 
     Return
     ----------
-    token_list : list
-        List of sets of numeric tokens within each standardised_address."""
-
-    token_list = [
-        set(re.findall("\w*\d\w*", address)) for address in df["standardised_address"]
+    valid_token_set : set
+        Set of valid tokens.
+        Set chosen as the order does not matter for comparison purposes.
+    """
+    tokens = re.findall("\w*\d\w*", address)
+    valid_tokens = [
+        token
+        for token in tokens
+        if (
+            (len(token) < token_length)
+            & (token.lower() not in postcode.lower().split())
+            & (token.lower() != postcode.lower().replace(" ", ""))
+        )
     ]
+    valid_token_set = set(valid_tokens)
 
-    return token_list
+    return valid_token_set
 
-
-# this isn't perfect - e.g. "Flat 3, 3 Street Name" would
-# just become {3} - could use a multiset instead
 
 # wonder if single-letter tokens should be in here too
 # for e.g. "Flat A" or whether this would give too many
@@ -94,7 +108,7 @@ def extract_numeric_tokens(df):
 
 
 def prepare_dhps(dhps):
-    """Prepares Dataframe of domestic HP installations by adding
+    """Prepare Dataframe of domestic HP installations by adding
     standardised_postcode, standardised_address and numeric_tokens fields.
 
     Parameters
@@ -112,17 +126,26 @@ def prepare_dhps(dhps):
     ]
 
     dhps["standardised_address"] = [
+        # Make address 1 and 2 lowercase, strip whitespace,
+        # and combine into a single string separated by a space
         rm_punct(add1).lower().strip() + " " + rm_punct(add2).lower().strip()
-        for add1, add2 in zip(dhps.address_1.fillna(""), dhps.address_2.fillna(""))
+        for add1, add2 in zip(
+            dhps["address_1"].fillna(""), dhps["address_2"].fillna("")
+        )
     ]
 
-    dhps["numeric_tokens"] = extract_numeric_tokens(dhps)
+    dhps["numeric_tokens"] = [
+        extract_token_set(address, postcode)
+        for address, postcode in zip(
+            dhps["standardised_address"].fillna(""), dhps["postcode"].fillna("")
+        )
+    ]
 
     return dhps
 
 
 def prepare_epcs(epcs):
-    """Prepares Dataframe of EPC records by adding
+    """Prepare Dataframe of EPC records by adding
     standardised_postcode, standardised_address and numeric_tokens fields.
 
     Parameters
@@ -138,7 +161,8 @@ def prepare_epcs(epcs):
     # Remove spaces, uppercase and strip whitespace from
     # postcodes in order to exact match on this field
     epcs["standardised_postcode"] = [
-        postcode.replace(" ", "") for postcode in epcs["POSTCODE"].fillna("UNKNOWN")
+        postcode.upper().replace(" ", "")
+        for postcode in epcs["POSTCODE"].fillna("UNKNOWN")
     ]
 
     # Remove punctuation, lowercase and concatenate address fields
@@ -147,7 +171,12 @@ def prepare_epcs(epcs):
         rm_punct(address).lower().strip() for address in epcs["ADDRESS1"]
     ]
 
-    epcs["numeric_tokens"] = extract_numeric_tokens(epcs)
+    epcs["numeric_tokens"] = [
+        extract_token_set(address, postcode)
+        for address, postcode in zip(
+            epcs["standardised_address"].fillna(""), epcs["POSTCODE"].fillna("")
+        )
+    ]
 
     return epcs
 
@@ -159,11 +188,18 @@ def prepare_epcs(epcs):
 
 
 def form_matching(df1, df2):
-    """Forms a matching between two Dataframes.
+    """Form a matching between two Dataframes.
     Initially an index is formed between records with shared
     standardised_postcode, then the records are compared for
     exact matches on numeric tokens and fuzzy matches on
-    standardised_address (using Jaro-Winkler method).
+    standardised_address using Jaro-Winkler method.
+    Jaro-Winkler chosen here as it prioritises characters
+    near the start of the string - this feels suitable as
+    the key information (such as house name) is likely to
+    be near the start of the string
+    This feels better suited than e.g. Levenshtein as to not
+    excessively punish the inclusion of extra information at
+    the end of the address field e.g. town, county.
 
     Parameters
     ----------
@@ -190,13 +226,6 @@ def form_matching(df1, df2):
     print("- Forming a comparison...")
     comp = rl.Compare()
     comp.exact("numeric_tokens", "numeric_tokens", label="numerics")
-    # Jaro-Winkler chosen here as it prioritises characters
-    # near the start of the string - this feels suitable as
-    # the key information (such as house name) is likely to
-    # be near the start of the string
-    # This feels better suited than e.g. Levenshtein as to not
-    # punish extra information at the end of the address field
-    # e.g. town, county
     comp.string(
         "standardised_address",
         "standardised_address",
@@ -214,7 +243,7 @@ def form_matching(df1, df2):
 def join_mcs_epc_data(
     dhps=None, epcs=None, save=True, all_records=False, drop_epc_address=False
 ):
-    """Joins MCS and EPC data.
+    """Join MCS and EPC data.
 
     Parameters
     ----------
@@ -226,6 +255,10 @@ def join_mcs_epc_data(
         Dataframe with standardised_postcode, numeric_tokens
         and standardised_address fields.
         If None, EPC data is loaded and augmented.
+    all_records : bool
+        Whether all top matches should be kept, or just one.
+        Keeping all records allows for comparison of property
+        characteristics over time.
     save : bool
         Whether or not to save the output.
     drop_epc_address : bool
@@ -256,20 +289,21 @@ def join_mcs_epc_data(
     ].reset_index()
 
     if all_records:
-
-        def get_max_epc_indices(df):
-            return df.loc[df.address_score == df.address_score.max(), "level_1"]
-
         top_matches = (
             good_matches.groupby("level_0")
-            .apply(get_max_epc_indices)
+            # Get all level_1 indices of rows in which address_score is maximal
+            .apply(
+                lambda df: df.loc[
+                    df["address_score"] == df["address_score"].max(), "level_1"
+                ]
+            )
             .droplevel(1)
             .reset_index()
             .rename(columns={"index": "level_0"})
         )
 
     else:
-        # Take the indices of the rows with best address match for each MCS index
+        # Get the level_1 index of the first occurrence at which address_score is maximal
         top_match_indices = good_matches.groupby("level_0")["address_score"].idxmax()
 
         # Filter the matches df to just the top matches
@@ -280,8 +314,11 @@ def join_mcs_epc_data(
     print("Joining the data...")
     merged = (
         dhps.reset_index()
+        # Join MCS records to the index-matching df on MCS index
         .merge(top_matches, how="left", left_on="index", right_on="level_0")
+        # Then join this merged df to EPC records on EPC index
         .merge(epcs.reset_index(), how="left", left_on="level_1", right_on="index")
+        # Drop any duplicated or unnecessary columns
         .drop(
             columns=[
                 "standardised_postcode_x",
@@ -300,7 +337,7 @@ def join_mcs_epc_data(
     if drop_epc_address:
         merged = merged.drop(columns="standardised_address_y")
     else:
-        merged = merged.rename({"standardised_address_y": "epc_address"})
+        merged = merged.rename(columns={"standardised_address_y": "epc_address"})
 
     if save:
         merged.to_csv(PROJECT_DIR / merged_path)
@@ -312,7 +349,7 @@ def join_mcs_epc_data(
 
 
 def main():
-    """Main function: Loads and joins MCS data to EPC data."""
+    """Main function: Load and join MCS data to EPC data."""
 
     start_time = time.time()
 
@@ -322,10 +359,9 @@ def main():
     runtime = round((end_time - start_time) / 60)
 
     print(
-        "Loading and joining MCS and EPC data took {} minutes.\n\nOutput saved in ".format(
-            runtime
+        "Loading and joining MCS and EPC data took {} minutes.\n\nOutput saved in {}".format(
+            runtime, merged_path
         )
-        + merged_path
     )
 
 
