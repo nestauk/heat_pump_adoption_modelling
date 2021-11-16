@@ -1,29 +1,20 @@
 # File: heat_pump_adoption_modelling/pipeline/MCS/load_mcs.py
-"""Loading MCS HP records and relevant EPC records."""
+"""Loading MCS heat pump records and inflation multipliers."""
 
 import pandas as pd
 import re
 
-from heat_pump_adoption_modelling import PROJECT_DIR
+from heat_pump_adoption_modelling import PROJECT_DIR, get_yaml_config, Path
 
-max_cost = 5000000
-max_capacity = 100
-epc_address_fields = ["ADDRESS1", "POSTTOWN", "POSTCODE"]
-epc_characteristic_fields = [
-    "TOTAL_FLOOR_AREA",
-    "CONSTRUCTION_AGE_BAND",
-    "BUILT_FORM",
-    "PROPERTY_TYPE",
-    "BUILDING_REFERENCE_NUMBER",
-    "INSPECTION_DATE",
-    "FLOOR_ENERGY_EFF",
-    "WALLS_ENERGY_EFF",
-    "HP_INSTALLED",
-]
-mcs_path = "inputs/MCS_data/mcs_heat_pumps.xlsx"
-epc_path = "outputs/EPC_data/preprocessed_data/Q2_2021/EPC_GB_preprocessed.csv"
-inflation_path = "inputs/data/inflation.csv"
-# TODO: put in config
+config = get_yaml_config(
+    Path(str(PROJECT_DIR) + "/heat_pump_adoption_modelling/config/base.yaml")
+)
+
+all_hp_filepath = config["MCS_HP_PATH"]
+domestic_hp_filepath = config["MCS_DOMESTIC_HP_PATH"]
+max_cost = config["MCS_MAX_COST"]
+max_capacity = config["MCS_MAX_CAPACITY"]
+inflation_path = config["INFLATION_PATH"]
 
 mcs_colnames_dict = {
     "Version Number": "version",
@@ -59,95 +50,103 @@ def load_domestic_hps():
     """Load domestic MCS HP installation data from file
     and performs some cleaning.
 
+    Parameters
+    ----------
+    filepath: str
+        Path to domestic HP data.
+        Function will load data from file if it exists;
+        otherwise it will load all HP data, filter
+        and save domestic HP data to filepath.
+
     Return
     ----------
     dhps: pandas.Dataframe
         All MCS heat pump installation records with 'domestic' installation type.
     """
 
-    hps = (
-        pd.read_excel(
-            PROJECT_DIR / mcs_path,
-            dtype={
-                "Address Line 1": str,
-                "Address Line 2": str,
-                "Address Line 3": str,
-                "Postcode": str,
-            },
+    if Path(str(PROJECT_DIR) + domestic_hp_filepath).is_file():
+        dhps = pd.read_csv(str(PROJECT_DIR) + domestic_hp_filepath)
+
+    else:  # load all HP data and process
+        hps = (
+            pd.read_excel(
+                str(PROJECT_DIR) + all_hp_filepath,
+                dtype={
+                    "Address Line 1": str,
+                    "Address Line 2": str,
+                    "Address Line 3": str,
+                    "Postcode": str,
+                },
+            )
+            .rename(columns=mcs_colnames_dict)
+            .convert_dtypes()
+            .drop_duplicates()
         )
-        .rename(columns=mcs_colnames_dict)
-        .convert_dtypes()
-        .drop_duplicates()
-    )
 
-    # Filter to domestic installations
-    dhps = (
-        hps[hps["installation_type"].str.strip() == "Domestic"]
-        .drop(columns="installation_type")
-        .reset_index(drop=True)
-    )
+        # Filter to domestic installations
+        dhps = (
+            hps[hps["installation_type"].str.strip() == "Domestic"]
+            .drop(columns="installation_type")
+            .reset_index(drop=True)
+        )
 
-    # Drop records with a newer version
-    # TODO: consider asking for the MCS certificate number field
-    # instead of just using the address
-    most_recent_indices = dhps.groupby(["address_1", "address_2", "address_3"])[
-        "version"
-    ].idxmax()
+        # Drop records with a newer version
+        # TODO: consider asking for the MCS certificate number field
+        # instead of just using the address
+        most_recent_indices = dhps.groupby(["address_1", "address_2", "address_3"])[
+            "version"
+        ].idxmax()
 
-    dhps = dhps.iloc[most_recent_indices]
+        dhps = dhps.iloc[most_recent_indices]
 
-    # Extract information from product column
-    product_regex_dict = {
-        "product_id": "MCS Product Number: ([^\|]+)",
-        "product_name": "Product Name: ([^\|]+)",
-        "manufacturer": "License Holder: ([^\|]+)",
-        "flow_temp": "Flow Temp: ([^\|]+)",
-        "scop": "SCOP: ([^\)]+)",
-    }
+        # Extract information from product column
+        product_regex_dict = {
+            "product_id": "MCS Product Number: ([^\|]+)",
+            "product_name": "Product Name: ([^\|]+)",
+            "manufacturer": "License Holder: ([^\|]+)",
+            "flow_temp": "Flow Temp: ([^\|]+)",
+            "scop": "SCOP: ([^\)]+)",
+        }
 
-    for product_feat, regex in product_regex_dict.items():
-        dhps[product_feat] = [
-            re.search(regex, product).group(1).strip() for product in dhps.products
-        ]
+        for product_feat, regex in product_regex_dict.items():
+            dhps[product_feat] = [
+                re.search(regex, product).group(1).strip() for product in dhps.products
+            ]
 
-    # Add RHI field - any "Unspecified" values in rhi_status field signify
-    # that the installation is not for DRHI, missing values are unknown
-    dhps["rhi"] = True
-    dhps.loc[(dhps["rhi_status"] == "Unspecified"), "rhi"] = False
-    dhps["rhi"].mask(dhps["rhi_status"].isna())
+        # Add RHI field - any "Unspecified" values in rhi_status field signify
+        # that the installation is not for DRHI, missing values are unknown
+        dhps["rhi"] = True
+        dhps.loc[(dhps["rhi_status"] == "Unspecified"), "rhi"] = False
+        dhps["rhi"].mask(dhps["rhi_status"].isna())
 
-    # Replace unreasonable cost and capacity values with NA
-    dhps["cost"] = dhps["cost"].mask((dhps["cost"] == 0) | (dhps["cost"] > max_cost))
-    dhps["capacity"] = dhps["capacity"].mask(dhps["capacity"] > max_capacity)
-    dhps["flow_temp"] = pd.to_numeric(dhps["flow_temp"])
-    dhps["flow_temp"] = dhps["flow_temp"].mask(dhps["flow_temp"] <= 0)
-    dhps["scop"] = pd.to_numeric(dhps["scop"].mask(dhps["scop"] == "Unspecified"))
-    dhps["scop"] = dhps["scop"].mask(dhps["scop"] == 0)
-    dhps["year"] = dhps["date"].dt.year
+        # Replace unreasonable cost and capacity values with NA
+        dhps["cost"] = dhps["cost"].mask(
+            (dhps["cost"] == 0) | (dhps["cost"] > max_cost)
+        )
+        dhps["capacity"] = dhps["capacity"].mask(dhps["capacity"] > max_capacity)
+        dhps["flow_temp"] = pd.to_numeric(dhps["flow_temp"])
+        dhps["flow_temp"] = dhps["flow_temp"].mask(dhps["flow_temp"] <= 0)
+        dhps["scop"] = pd.to_numeric(dhps["scop"].mask(dhps["scop"] == "Unspecified"))
+        dhps["scop"] = dhps["scop"].mask(dhps["scop"] == 0)
+        dhps["year"] = dhps["date"].dt.year
 
-    dhps = dhps.reset_index(drop=True)
+        dhps = dhps.reset_index(drop=True)
+
+        dhps.to_csv(str(PROJECT_DIR) + domestic_hp_filepath)
 
     return dhps
 
 
-def load_epcs():
-    """Load relevant columns of EPC records.
+def load_inflation():
+    """Load inflation multiplier data.
 
     Return
     ----------
-    epcs: pandas.Dataframe
-        EPC records, columns specified in config.
+    inflation: pandas.Dataframe
+        Inflation multiplier for each calendar year.
     """
-    epcs = pd.read_csv(
-        PROJECT_DIR / epc_path,
-        usecols=epc_address_fields + epc_characteristic_fields,
-    )
 
-    return epcs
-
-
-def load_inflation():
-    inflation = pd.read_csv(PROJECT_DIR / inflation_path).rename(
+    inflation = pd.read_csv(str(PROJECT_DIR) + inflation_path).rename(
         columns={
             "Year": "year",
             "Multiplier to Use for 2021\n [Combined] Overall Index": "multiplier",
