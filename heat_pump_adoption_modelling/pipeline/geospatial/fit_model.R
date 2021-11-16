@@ -46,7 +46,6 @@ impute_from_distribution <- function(x) { # simple imputation according to empir
     distribution <- table(tmp_x)/sum(table(tmp_x))
 
     final_x <- x
-
     final_x[which_na] <- sample(names(distribution),nas,
                                       replace=TRUE,
                                       prob=distribution)
@@ -56,32 +55,6 @@ impute_from_distribution <- function(x) { # simple imputation according to empir
   } else return(x)
 
 }
-
-# missingness analysis - to be moved elsewhere
-
-# x[x=='']<- NA
-
-# miss_summary_res <- miss_summary(x)
-#
-# vis_miss(x,sort_miss=FALSE,warn_large_data = FALSE)
-#
-# sets <- 10
-# nint <- 30
-# p_miss <- gg_miss_upset(x,nsets=sets,nintersects=nint)
-# p_miss
-
-# gg_miss_upset(x2,nsets=sets,nintersects=nint)
-# vis_miss(x2,sort_miss=FALSE,warn_large_data = FALSE)
-#
-# miss_summary_res <- miss_summary(x2)
-# miss_summary_res
-
-# x3 <- x2[complete.cases(x2),] # too aggressive a strategy
-
-# for now, single-impute values
-
-# is.na(final_property_type) + is.na(final_prop_tenure) seem to account for the largest
-# row-wise missingness
 
 
 #### IMPORT DATA
@@ -140,9 +113,7 @@ enhanced_epc <- sapply(filtered_epc, impute_from_distribution) %>%
                                          '51-100mm',
                                          '101-150mm',
                                          '151-200mm',
-                                         '201mm+'
-                                         )
-                                ),
+                                         '201mm+')),
          final_hab_rooms=ordered(final_hab_rooms),
          final_glaz_type=ordered(final_glaz_type),
          final_property_age=ordered(final_property_age,
@@ -152,65 +123,27 @@ enhanced_epc <- sapply(filtered_epc, impute_from_distribution) %>%
                                              '1950_1966',
                                              '1967_1982',
                                              '1983_1995',
-                                             'Post_1996'
-                                             )
-                                    )
-         ) %>%
+                                             'Post_1996'))) %>%
   group_by(postcode) %>%
   mutate(n_heat_pumps=sum(heat_pump=='TRUE')) %>% # define outcome as number of installations per postcode
   ungroup
 
-household_data <- left_join(enhanced_epc,
-                          centroids,
-                          by='postcode'
-                          ) %>%
+household_data <- left_join(enhanced_epc, centroids, by='postcode') %>%
   # add postcode centroids
-  left_join(.,
-            households %>% dplyr::select(-one_of('postcode_area')),
-            by='postcode'
-            ) %>%
+  left_join(., households %>% dplyr::select(-one_of('postcode_area')),
+            by='postcode') %>%
   filter(n_households>0, !is.na(easting))
 # for now, filter out those with zero/NA population
 # and no coordinates
 
-###################
-### AGGREGATION ###
-###################
+
+#### AGGREGATION
 
 # create postcode-level variables from individual level ones
-#
-# decisions to be made re how to aggregate categorical/ordinal household characteristics
-#
-#   i) go with some summary measure, such as a mode/median
-#  ii) pick a category and compute proportion with/below/above the characteristic by postcode
-# iii) split using dummy variables, then sum by postcode to obtain counts
-#  iv) consider using functional data as covariates
-#   v) use dimensionality reduction techniques
-#
-# some thoughts
-#
-#   i) light-touch, but we would lose a lot of information
-#  ii) slightly better than i), but still losing information + arbitrary choice of categories
-# iii) would seem the better solution, the number of covariates would increase, but not the
-#      number of parameters (still k-1 for a k categories variable?). However, we risk losing
-#      the ordinal nature of some of the variables - maybe use ii) for those? <- think.
-#  iv) quite complex, but maybe not unfeasible, and would ideally allow to retain
-#      the most information - not sure how this would affect estimation, whereas it would
-#      certainly make interpretation more complex (nuanced?)
-#   v) we first would need a good chat with domain experts to understand which bits of information
-#      can be "mixed together", and which would be better to leave as standalone variables
-#
-# For now, let's just go with iii), mindful that we are somewhat losing the ordinal nature of
-# the following:
-#
-# "final_property_age"          <- take middle value of classes then numerify
-# "final_hab_rooms"             <- numerify, with 8+==8, 0-2==1.5 [we might recover the actual numbers]
-# "final_loft_ins"              <- is this temporally antecedent heat pump installations?
-# "final_glaz_type"             <- dichotomous, Single/Partial vs Total
-# "final_low_energy_lighting"   <- pick 75% as threshold and compute proportions [ask Chris]
 
 tmp_dummify <- data.frame(
-  dummify(household_data$final_property_type), dummify(household_data$final_prop_tenure)
+  dummify(household_data$final_property_type),
+  dummify(household_data$final_prop_tenure)
 )
 
 names(tmp_dummify) <- paste0('is_', tolower(gsub('\\.','_',names(tmp_dummify))))
@@ -223,39 +156,38 @@ rm(tmp_dummify)
 # and should ideally account for different choices
 postcode_data <- household_data %>%
   group_by(postcode) %>%
-  mutate(median_property_age=median(as.numeric(final_property_age)),
-         median_hab_rooms=median(as.numeric(final_hab_rooms)),
-         median_loft_ins=median(as.numeric(final_loft_ins)),
-         p_dt_glaz=mean(final_glaz_type=='Double/Triple'),
-         median_low_energy_lighting=median(as.numeric(final_low_energy_lighting)),
-         median_floor_area=median(final_floor_area),
-         n_block_of_flats=sum(is_block_of_flats),
-         p_detached_house=mean(is_detached_house),
-         n_end_terraced_house=sum(is_end_terraced_house),
-         n_mid_terraced_house=sum(is_mid_terraced_house),
-         n_semi_detached_house=sum(is_semi_detached_house),
-         p_owner_occupied=mean(is_owner_occupied),
-         n_privately_rented=sum(is_privately_rented),
-         n_social=sum(is_social),
-         p_wall_ins=mean(final_wall_ins=='Insulated')) %>%
+  mutate(median_property_age = median(as.numeric(final_property_age)),
+         median_hab_rooms = median(as.numeric(final_hab_rooms)),
+         median_loft_ins = median(as.numeric(final_loft_ins)),
+         p_dt_glaz = mean(final_glaz_type=='Double/Triple'),
+         median_low_energy_lighting = median(as.numeric(final_low_energy_lighting)),
+         median_floor_area = median(final_floor_area),
+         n_block_of_flats = sum(is_block_of_flats),
+         p_detached_house = mean(is_detached_house),
+         n_end_terraced_house = sum(is_end_terraced_house),
+         n_mid_terraced_house = sum(is_mid_terraced_house),
+         n_semi_detached_house = sum(is_semi_detached_house),
+         p_owner_occupied = mean(is_owner_occupied),
+         n_privately_rented = sum(is_privately_rented),
+         n_social = sum(is_social),
+         p_wall_ins = mean(final_wall_ins=='Insulated'),
+         epc_household_count = n()) %>%
   slice(1) %>%
   ungroup %>%
   dplyr::select(-starts_with(c("final_", "is_")), -heat_pump) %>%
-  mutate(better_household_estimate = pmax(n_households, n_heat_pumps))
+  mutate(better_household_estimate = pmax(n_households, epc_household_count))
 
 postcode_data$postcode_n <- 1:nrow(postcode_data)
 
 # create adjacency matrix via Voronoi tessellation
-
 adjacency_graph <- caramellar::voronoi_adjacency(
   postcode_data %>% dplyr::select(postcode_n, easting, northing),
   postcode_n ~ easting + northing
   )$Adjacencies %>% inla.read.graph
 # really this should use the full postcode list as some postcodes do not appear in EPC
 
-#################
-# fit the model #
-#################
+
+#### MODEL FITTING
 
 # set inla controls
 control <- list(predictor=list(compute=TRUE,link=1),
@@ -266,14 +198,14 @@ control <- list(predictor=list(compute=TRUE,link=1),
                              waic=TRUE, graph=TRUE, gdensity=TRUE))
 
 # model specification
-
 model <- n_heat_pumps ~ 1 +
   f(inla.group(median_floor_area, n=100), model="rw1") +
   f(median_property_age, model="rw1") +
   f(median_hab_rooms, model="rw1") +
-  f(postcode_n, model = 'besag', graph=adjacency_graph) +     # structured spatial component (iCAR)
+  f(postcode_n, model = 'besag', graph=adjacency_graph) +
   f(postcode, model='iid')
 
+# simple model
 cheap_approximation <- inla(model,
                             family='binomial',
                             Ntrials=better_household_estimate,
@@ -288,7 +220,7 @@ cheap_approximation <- inla(model,
 
 # use the command
 #
-model_fit <- cheap_approximation
+#model_fit <- cheap_approximation
 #
 # and ignore the following model fit block to be able to use the rest of the
 # code without having to wait for the more accurate approximation to be obtained
@@ -308,67 +240,42 @@ model_fit <- inla(model,
                                     restart=TRUE),
                   verbose=TRUE)
 
-###################################
-# posterior distributions summary #
-###################################
 
-# table of fixed effects posterior estimates
-model_fit$summary.fixed
-
-# table of random effects posterior estimates
-model_fit$summary.random        # expressed in terms of precision
-bri.hyperpar.summary(model_fit) # expressed in terms of standard deviation
-
-#######################################
-# post-processing of the model output #
-#######################################
-
+#### POST-PROCESSING AND PLOTTING
 
 # add the fitted values to the dataset and make postcode sectors into factors
 data_fitted <- postcode_data %>%
-  mutate(fitted=model_fit$summary.fitted.values$mean)
+  mutate(fitted=model_fit$summary.fitted.values$mean,
+         observed=n_heat_pumps/better_household_estimate)
 
-# obtain predictions by postcode sector
+# obtain average fitted probabilities by postcode sector
 average_fitted <- data_fitted %>%
-  mutate(postcode_sector=factor(substr(postcode,1,nchar(as.character(postcode))-2))) %>%
+  mutate(postcode_sector =
+           factor(substr(postcode, 1, nchar(as.character(postcode))-2))) %>%
   group_by(postcode_sector) %>%
   summarise(avg_fitted=mean(fitted),
-            avg_observed=mean(n_heat_pumps/better_household_estimate))
+            avg_observed=mean(observed))
 
-
-par(mfrow=c(3,2))
-
-# number of households
-plot(data_fitted$better_household_estimate, data_fitted$fitted,
-     pch=16,cex=.5,col='#00000050')
-lines(lowess(data_fitted$fitted ~ data_fitted$better_household_estimate),
-      col='#0000FF75',lwd=4)
-# floor area
-plot(data_fitted$median_floor_area, data_fitted$fitted,
-     pch=16,cex=.5,col='#00000050')
-lines(lowess(data_fitted$fitted ~ data_fitted$median_floor_area),
-      col='#0000FF75',lwd=4)
-# property age
-plot(data_fitted$median_property_age, data_fitted$fitted,
-     pch=16,cex=.5,col='#00000050')
-lines(lowess(data_fitted$fitted ~ data_fitted$median_property_age),
-      col='#0000FF75',lwd=4)
-
-plot(data_fitted$median_hab_rooms, data_fitted$fitted,
-     pch=16,cex=.5,col='#00000050')
-lines(lowess(data_fitted$fitted ~ data_fitted$median_hab_rooms),
-      col='#0000FF75',lwd=4)
-
-plot(data_fitted$p_detached_house, data_fitted$fitted,
-     pch=16,cex=.5,col='#00000050')
-lines(lowess(data_fitted$fitted ~ data_fitted$p_detached_house),
-      col='#0000FF75',lwd=4)
-
+# fitted vs observed
+plot(data_fitted$observed, data_fitted$fitted,
+     pch=16, cex=.5, col='#00000075')
 plot(average_fitted$avg_observed, average_fitted$avg_fitted,
      pch=16, cex=.5, col='#00000075', asp=1)
 
-par(mfrow=c(1,1))
+# model diagnostics
+model_plot = function(variable) {
+  ggplot(data_fitted, aes_string(x=variable, y='fitted')) +
+      geom_point(alpha=0.3) +
+      geom_smooth(method='loess',colour='#0000FF75') +
+      labs(x = variable, y = "Estimated probability", colour = "Median property age") +
+      theme_bw()
+}
 
+model_plot('better_household_estimate')
+model_plot('median_floor_area')
+model_plot('median_property_age')
+model_plot('median_hab_rooms')
+model_plot('p_detached_house')
 
 
 # plots for EST
@@ -384,7 +291,20 @@ par(mfrow=c(1,1))
 #   geom_point(alpha=0.3) +
 #   geom_smooth(method='loess',colour='#0000FF75',width=4)
 #
-
+#
+# estBetaParams <- function(mu, var) {
+#   alpha <- ((1 - mu) / var - 1 / mu) * mu ^ 2
+#   beta <- alpha * (1 / mu - 1)
+#   return(params = list(alpha = alpha, beta = beta))
+# }
+#
+# data_fitted = data_fitted %>% mutate(hp_prop = n_heat_pumps/better_household_estimate)
+# beta_params = estBetaParams(mean(data_fitted$hp_prop), var(data_fitted$hp_prop))
+# data_fitted = data_fitted %>% mutate(
+#   posterior = (n_heat_pumps + beta_params$alpha) / (better_household_estimate + beta_params$alpha + beta_params$beta)
+# ) %>%
+#   arrange(desc(posterior)) %>%
+#   dplyr::select(postcode, n_heat_pumps, better_household_estimate, posterior, fitted)
 
 
 # extract the exponentiated spatial residuals
@@ -392,11 +312,8 @@ par(mfrow=c(1,1))
 exp_residuals <- numeric(length(model_fit$marginals.random$postcode_n))
 
 for (i in 1:length(exp_residuals)) {
-
   tmp <- model_fit$marginals.random$postcode_n[[i]]
-
   exp_residuals[i] <- inla.emarginal(exp,tmp)
-
 }
 
 rm(tmp,i) # clean up
