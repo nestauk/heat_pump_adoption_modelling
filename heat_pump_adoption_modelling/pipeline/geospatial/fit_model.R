@@ -96,7 +96,7 @@ filtered_epc <- full_epc %>%
   dplyr::select(all_of(relevant_cols)) %>%
   mutate(postcode_area = str_extract(POSTCODE, "^[A-Z]+")) %>%
   filter(postcode_area %in% postcode_areas) %>%
-  dplyr::select(!postcode_area)
+  dplyr::select(-postcode_area)
 
 names(filtered_epc) <- tolower(names(filtered_epc))
 
