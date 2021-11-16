@@ -1,5 +1,15 @@
 # File: heat_pump_adoption_modelling/pipeline/MCS/mcs_epc_joining.py
-"""Joining the MCS and EPC datasets."""
+"""Joining the MCS and EPC datasets.
+Overall process is as follows:
+- Standardise address and postcode fields
+- Extract numeric tokens from address
+- Group by postcode
+- Exact match on numeric tokens
+- Compare address using Jaro-Winkler score
+- Drop any match with score below a certain parameter
+- Of the remaining matches, take the one with highest score
+- Join datasets using this matching
+"""
 
 import pandas as pd
 import numpy as np
@@ -7,28 +17,19 @@ import re
 import recordlinkage as rl
 import time
 
-from heat_pump_adoption_modelling import PROJECT_DIR
-from heat_pump_adoption_modelling.pipeline.MCS.load_mcs import (
-    load_domestic_hps,
-    load_epcs,
+from heat_pump_adoption_modelling import PROJECT_DIR, get_yaml_config, Path
+from heat_pump_adoption_modelling.pipeline.MCS.load_mcs import load_domestic_hps
+from heat_pump_adoption_modelling.getters import epc_data
+
+config = get_yaml_config(
+    Path(str(PROJECT_DIR) + "/heat_pump_adoption_modelling/config/base.yaml")
 )
 
-
-matching_parameter = 0.7
-merged_path = "outputs/mcs_epc.csv"
-token_length = 8
-# TODO: put this in config
-
-
-# Overall process:
-# - standardise address and postcode fields
-# - extract numeric tokens from address
-# - group by postcode
-# - exact match on numeric tokens
-# - compare address using jaro-winkler
-# - drop anything below a certain parameter
-# - of remaining matches, take the best
-# - join using this matching
+max_token_length = config["MCS_EPC_MAX_TOKEN_LENGTH"]
+address_fields = config["MCS_EPC_ADDRESS_FIELDS"]
+characteristic_fields = config["MCS_EPC_CHARACTERISTIC_FIELDS"]
+matching_parameter = config["MCS_EPC_MATCHING_PARAMETER"]
+merged_path = config["MCS_EPC_MERGED_PATH"]
 
 #### UTILS
 
@@ -83,12 +84,13 @@ def extract_token_set(address, postcode):
         Set of valid tokens.
         Set chosen as the order does not matter for comparison purposes.
     """
+
     tokens = re.findall("\w*\d\w*", address)
     valid_tokens = [
         token
         for token in tokens
         if (
-            (len(token) < token_length)
+            (len(token) < max_token_length)
             & (token.lower() not in postcode.lower().split())
             & (token.lower() != postcode.lower().replace(" ", ""))
         )
@@ -121,9 +123,9 @@ def prepare_dhps(dhps):
     dhps : pandas.Dataframe
         Dataframe containing domestic HP records with added fields."""
 
-    dhps["standardised_postcode"] = [
-        pc.upper().strip() for pc in dhps["postcode"].fillna("unknown")
-    ]
+    dhps["standardised_postcode"] = (
+        dhps["postcode"].fillna("unknown").str.upper().str.strip()
+    )
 
     dhps["standardised_address"] = [
         # Make address 1 and 2 lowercase, strip whitespace,
@@ -160,10 +162,9 @@ def prepare_epcs(epcs):
 
     # Remove spaces, uppercase and strip whitespace from
     # postcodes in order to exact match on this field
-    epcs["standardised_postcode"] = [
-        postcode.upper().replace(" ", "")
-        for postcode in epcs["POSTCODE"].fillna("UNKNOWN")
-    ]
+    epcs["standardised_postcode"] = (
+        epcs["POSTCODE"].fillna("UNKNOWN").str.upper().str.replace(" ", "")
+    )
 
     # Remove punctuation, lowercase and concatenate address fields
     # for approximate matching
@@ -214,7 +215,8 @@ def form_matching(df1, df2):
     ----------
     matching : pandas.Dataframe
         Dataframe giving indices of df1 and matched indices in df2
-        along with similarity scores for numeric tokens (0/1) and address (0-1)."""
+        along with similarity scores for numeric tokens (value in {0, 1})
+        and address (continuous value in [0, 1])."""
 
     # Index
     print("- Forming an index...")
@@ -277,7 +279,10 @@ def join_mcs_epc_data(
 
     if epcs is None:
         print("Preparing EPC data...")
-        epcs = load_epcs()
+        fields_of_interest = address_fields + characteristic_fields
+        epcs = epc_data.load_preprocessed_epc_data(
+            version="preprocessed", usecols=fields_of_interest
+        )
         epcs = prepare_epcs(epcs)
 
     print("Forming a matching...")
@@ -340,7 +345,7 @@ def join_mcs_epc_data(
         merged = merged.rename(columns={"standardised_address_y": "epc_address"})
 
     if save:
-        merged.to_csv(PROJECT_DIR / merged_path)
+        merged.to_csv(str(PROJECT_DIR) + merged_path)
 
     return merged
 
