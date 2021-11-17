@@ -109,7 +109,7 @@ def dimensionality_reduction(
         )
 
 
-def plot_confusion_matrix(solutions, predictions, label_set, title):
+def plot_confusion_matrix(solutions, predictions, label_set=None, title=""):
     """Plot the confusion matrix for different classes given correct labels and predictions.
 
     Paramters:
@@ -285,3 +285,36 @@ def plot_feature_coefficients(classifier, feature_names, label_set, title):
 
     # Show
     plt.show()
+
+
+def map_percentage_to_bin(predictions, solutions, interval=5):
+
+    values = [
+        [str(i) + "-" + str(i + interval) + "%"] * interval
+        for i in range(0, 100, interval)
+    ]
+    values = [item for sublist in values for item in sublist]
+    keys = [i / 100 for i in range(0, 100)]
+
+    cat_dict = dict(zip(keys, values))
+    n_categories = len(set(cat_dict.values()))
+    categories = [cat_dict[key] for key in sorted(set(cat_dict.keys()))]
+    categories = sorted(set(categories), key=categories.index)
+
+    cat_dict[1.0] = categories[-1]
+
+    ordinal_labels = [int(i) for i in range(n_categories)]
+    label_dict_1 = dict(zip(categories, ordinal_labels))
+    label_dict_2 = dict(zip(ordinal_labels, categories))
+    label_dict = {**label_dict_1, **label_dict_2}
+
+    predictions = np.round(predictions, 2).astype("float")
+    solutions = np.round(solutions, 2).astype("float")
+
+    predictions_cats = np.vectorize(cat_dict.get)(predictions)
+    solutions_cats = np.vectorize(cat_dict.get)(solutions)
+
+    predictions_labels = np.vectorize(label_dict.get)(predictions_cats)
+    solutions_labels = np.vectorize(label_dict.get)(solutions_cats)
+
+    return predictions_labels, solutions_labels, label_dict
