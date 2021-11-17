@@ -269,7 +269,7 @@ def feature_encoding_pipeline(
     df = ordinal_encode_cat_features(df, ordinal_features)
 
     # Optional one-hot encoding
-    if (onehot_features is not None) or (not onehot_features):
+    if (onehot_features is not None) or onehot_features:
 
         # If automatically identifying one-hot features
         if onehot_features == "auto":
