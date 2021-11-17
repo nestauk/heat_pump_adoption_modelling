@@ -25,7 +25,10 @@ from heat_pump_adoption_modelling.pipeline.encoding import (
     feature_encoding,
     category_reduction,
 )
-from heat_pump_adoption_modelling.pipeline.supervised_model import utils
+from heat_pump_adoption_modelling.pipeline.supervised_model import (
+    utils,
+    data_aggregation,
+)
 from heat_pump_adoption_modelling.pipeline.preprocessing import (
     data_cleaning,
     feature_engineering,
@@ -72,6 +75,12 @@ epc_df = epc_data.load_preprocessed_epc_data(
 epc_df.head()
 
 # %%
+POSTCODE_LEVEL = "POSTCODE_SECTOR"
+epc_df = data_aggregation.get_postcode_levels(epc_df, only_keep=POSTCODE_LEVEL)
+
+print(epc_df.columns)
+
+# %%
 ordinal_features = [
     "MAINHEAT_ENERGY_EFF",
     "CURRENT_ENERGY_RATING",
@@ -113,7 +122,7 @@ drop_features = [
     "UNIQUE_ADDRESS",
     "INSPECTION_DATE",
     "MAIN_FUEL",
-    "HEATING_SYSTEM",
+    # "HEATING_SYSTEM",
     "HP_TYPE",
 ]
 
@@ -122,13 +131,28 @@ epc_df_encoded = feature_encoding.feature_encoding_pipeline(
     epc_df,
     ordinal_features,
     reduce_categories=True,
-    onehot_features="auto",
-    target_variables=["HP_INSTALLED", "POSTCODE"],
+    onehot_features=None,
+    target_variables=None,
     drop_features=drop_features,
 )
 
-# %%
 epc_df_encoded.head()
+
+# %%
+numeric_features = epc_df_encoded.select_dtypes(include=np.number).columns.tolist()
+print(numeric_features)
+print(len(numeric_features))
+categorical_features = [
+    feature
+    for feature in epc_df_encoded.columns
+    if (feature not in ordinal_features) and (feature not in numeric_features)
+]
+
+categorical_features = [
+    f for f in categorical_features if f not in [POSTCODE_LEVEL, "HP_INSTALLED"]
+]
+print(categorical_features)
+print(len(categorical_features))
 
 
 # %%
@@ -140,7 +164,7 @@ def get_year_range_data(df, years):
                 "BUILDING_ID",
                 year,
                 selection="latest entry",
-                up_to=False,
+                up_to=True,
             )
             for year in years
         ],
@@ -150,20 +174,317 @@ def get_year_range_data(df, years):
     return year_range_df
 
 
-training_years = get_year_range_data(epc_df_encoded, [2008, 2009, 2010])
-prediction_years = get_year_range_data(epc_df_encoded, [2011])
+training_years = get_year_range_data(epc_df_encoded, [2008, 2009, 2010, 2011, 2012])
+prediction_years = get_year_range_data(epc_df_encoded, [2014, 2013, 2015, 2016])
+
+data_time_t = feature_engineering.filter_by_year(
+    epc_df_encoded, "BUILDING_ID", 2015, selection="latest entry", up_to=True
+)
+data_time_t_plus_one = feature_engineering.filter_by_year(
+    epc_df_encoded, "BUILDING_ID", 2019, selection="latest entry", up_to=True
+)
 
 # %%
-training_years["POSTCODE"].value_counts()
+num_agglomerated = (
+    data_time_t[numeric_features + [POSTCODE_LEVEL]].groupby([POSTCODE_LEVEL]).median()
+)
+num_agglomerated = num_agglomerated.reset_index()
+num_agglomerated.tail()
 
 # %%
-for postcode in training_years["POSTCODE"].unique():
-    print(postcode)
-    postcode_df = training_years.loc[training_years["POSTCODE"] == postcode]
-    print(postcode_df["POSTCODE"].value_counts())
+cat_agglomerated = data_aggregation.aggreate_categorical_features(
+    data_time_t, categorical_features, agglo_feature=POSTCODE_LEVEL
+)
+
+cat_agglomerated.tail()
+
 
 # %%
-training_years.groupby("POSTCODE").head()
+def get_feature_count_grouped(
+    df, feature, groupby_f, name=None
+):  # Get the feature categories by the agglomeration feature
+
+    if name is None:
+        name = feature + ": True"
+
+    feature_cats_by_agglo_f = (
+        df.groupby([groupby_f, feature]).size().unstack(fill_value=0)
+    ).reset_index()
+
+    feature_cats_by_agglo_f.rename(columns={True: name}, inplace=True)
+
+    return feature_cats_by_agglo_f[[groupby_f, name]]
+
+
+n_hp_installed_current = get_feature_count_grouped(
+    data_time_t, "HP_INSTALLED", POSTCODE_LEVEL, name="# HP at Time t"
+)  # [[True, POSTCODE_LEVEL]]
+n_hp_installed_future = get_feature_count_grouped(
+    data_time_t_plus_one, "HP_INSTALLED", POSTCODE_LEVEL, name="# HP at Time t+1"
+)
+n_hp_installed_total = get_feature_count_grouped(
+    epc_df_encoded, "HP_INSTALLED", POSTCODE_LEVEL, name="Total # HP"
+)  # [[True, POSTCODE_LEVEL]]
+
+total_basis = [data_time_t_plus_one, epc_df_encoded][0]
+n_prop_total = (
+    total_basis.groupby([POSTCODE_LEVEL]).size().reset_index(name="# Properties")
+)
+
+print(n_hp_installed_training.shape)
+n_hp_installed_training.head()
+
+# %%
+target_var_df = pd.merge(
+    n_hp_installed_current, n_hp_installed_future, on=POSTCODE_LEVEL
+)
+target_var_df = pd.merge(target_var_df, n_prop_total, on=POSTCODE_LEVEL)
+target_var_df["HP_COVERAGE_CURRENT"] = (
+    target_var_df["# HP at Time t"] / target_var_df["# Properties"]
+)
+target_var_df["HP_COVERAGE_FUTURE"] = (
+    target_var_df["# HP at Time t+1"] / target_var_df["# Properties"]
+)
+target_var_df["GROWTH"] = (
+    target_var_df["HP_COVERAGE_FUTURE"] - target_var_df["HP_COVERAGE_CURRENT"]
+)
+
+print(target_var_df.shape)
+target_var_df.head()
+
+# %%
+samples_to_discard = list(
+    target_var_df.loc[target_var_df["GROWTH"] < 0.0][POSTCODE_LEVEL]
+)
+print(
+    "Number of samples to discard because of negative growth: {}".format(
+        len(samples_to_discard)
+    )
+)
+
+# %%
+agglomerated_df = pd.concat(
+    [cat_agglomerated, num_agglomerated.drop(columns=[POSTCODE_LEVEL])], axis=1
+)
+
+print(agglomerated_df.shape)
+print(target_var_df.shape)
+
+agglomerated_with_target = pd.merge(
+    agglomerated_df,
+    target_var_df[
+        ["HP_COVERAGE_CURRENT", "HP_COVERAGE_FUTURE", "GROWTH", POSTCODE_LEVEL]
+    ],
+    on=POSTCODE_LEVEL,
+)
+
+print(agglomerated_with_target.shape)
+agglomerated_with_target.head()
+
+# %%
+most_freq_features = [
+    col for col in agglomerated_with_target.columns if "MOST_FREQUENT" in col
+]
+agglomerated_with_target = agglomerated_with_target.drop(columns=most_freq_features)
+
+print(agglomerated_with_target.shape)
+agglomerated_with_target = agglomerated_with_target[
+    ~agglomerated_with_target[POSTCODE_LEVEL].isin(samples_to_discard)
+]
+print(agglomerated_with_target.shape)
+
+# %%
+target_variables = ["GROWTH", "HP_COVERAGE_FUTURE"]
+TARGET_VARIABLE = target_variables[1]
+
+X = agglomerated_with_target
+y = np.array(X[TARGET_VARIABLE])
+
+for col in target_variables + [POSTCODE_LEVEL]:
+    if col in X.columns:
+        del X[col]
+
+print(X.shape)
+X = X.dropna(axis="columns", how="all")
+print(X.shape)
+# X.fillna(X.mean(), inplace=True)
+
+# %%
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
+
+prepr_pipeline = Pipeline(
+    [
+        ("imputer", SimpleImputer(missing_values=np.nan, strategy="median")),
+        ("min_max_scaler", MinMaxScaler()),
+        ("pca", PCA(n_components=0.9, random_state=42)),
+    ]
+)
+
+# %%
+X = prepr_pipeline.fit_transform(X)
+print(X.shape)
+
+# %%
+# Reduce dimensionality to level of 90% explained variance ratio
+# X_dim_reduced = utils.dimensionality_reduction(
+#    X_scaled,
+#    dim_red_technique="pca",
+#    pca_expl_var_ratio=0.90,
+#    random_state=42,
+# )
+# print(X_dim_reduced.shape)
+
+# %%
+# Split into train and test sets
+X_train, X_test, y_train, y_test = train_test_split(
+    X,
+    y,
+    test_size=0.1,
+    random_state=42,  # stratify=y
+)
+
+# %%
+
+print("Number of samples:", X.shape[0])
+print("Number of features:", X.shape[1])
+print()
+
+from sklearn.linear_model import LinearRegression
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import GridSearchCV
+
+model_dict = {
+    "SVM Regressor": svm.SVR(),
+    "Linear Regression": LinearRegression(),
+    "Decision Tree Regressor": DecisionTreeRegressor(),
+    "Random Forest Regressor": RandomForestRegressor(),
+}
+cv = 3
+interval = 5
+
+best_params = {
+    "SVM Regressor": {"C": 5, "gamma": 0.1, "kernel": "rbf"},
+    "Linear Regression": {},
+    "Decision Tree Regressor": {},  # {'max_depth': 11, 'max_features': None, 'max_leaf_nodes': 10, 'min_samples_leaf': 5, 'min_weight_fraction_leaf': 0.05, 'splitter': 'random'},
+    "Random Forest Regressor": {},
+}  # {'max_features': 12, 'n_estimators': 30}}
+
+
+def display_scores(scores):
+    print("Scores:", scores)
+    print("Mean:", scores.mean())
+    print("Standard deviation:", scores.std())
+
+
+def train_and_evaluate(model_name):
+
+    model = model_dict[model_name]
+    model.set_params(**best_params[model_name])
+    model.fit(X_train, y_train)
+
+    pred_train = model.predict(X_train)
+    pred_test = model.predict(X_test)
+
+    print("\n*****************\nModel Name: {}\n*****************".format(model_name))
+
+    if TARGET_VARIABLE in ["HP_COVERAGE_FUTURE", "GROWTH"]:
+
+        for set_name in ["train", "val"]:
+
+            if set_name == "train":
+                preds = pred_train
+                sols = y_train
+                set_name = "Training Set"
+            elif set_name == "val":
+                preds = pred_test
+                sols = y_test
+                set_name = "Validation Set"
+
+            print("\n-----------------\n{}\n-----------------".format(set_name))
+            print()
+
+            preds[preds < 0] = 0.0
+
+            predictions, solutions, label_dict = utils.map_percentage_to_bin(
+                preds, sols, interval=interval
+            )
+
+            overlap = (predictions == solutions).sum() / predictions.shape[0]
+            print("Category Accuracy with {}% steps : {}".format(interval, overlap))
+
+            # Plot the confusion matrix for training set
+            utils.plot_confusion_matrix(
+                solutions,
+                predictions,
+                [label_dict[label] for label in sorted(set(solutions))],
+                title=TARGET_VARIABLE + ": " + set_name,
+            )
+
+            plt.scatter(preds, sols)
+            plt.title(TARGET_VARIABLE + ": " + set_name)
+            plt.xlabel("Prediction")
+            plt.ylabel("Ground Truth")
+            plt.show()
+
+            scores = cross_val_score(
+                model, X_train, y_train, cv=cv, scoring="neg_mean_squared_error"
+            )
+            rsme_scores = np.sqrt(-scores)
+            display_scores(rsme_scores)
+
+
+for model in model_dict.keys():
+    train_and_evaluate(model)
+
+# %%
+from sklearn.model_selection import GridSearchCV
+
+param_grid_dict = {
+    "Random Forest Regressor": [
+        {
+            "n_estimators": [2, 5, 10, 22, 25, 30, 35, 40, 45, 50],
+            "max_features": [1, 2, 4, 6, 8, 10, 12, 14, 15, 16, 18, 20],
+        },
+        # {'bootstrap': [False], 'n_estimators':[3,10], 'max_features':[2,3,4]}
+    ],
+    "SVM Regressor": {
+        "gamma": [0.0001, 0.001, 0.01, 0.1, 1.0, 10],
+        "kernel": ["rbf"],
+        "C": [0.001, 0.01, 0.1, 1, 2, 5, 10, 15, 20],
+    },
+    "Decision Tree Regressor": {
+        "splitter": ["best", "random"],
+        "max_depth": [1, 3, 5, 7, 9, 11, 12],
+        "min_samples_leaf": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+        "min_weight_fraction_leaf": [0.25, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5],
+        "max_features": ["auto", "log2", "sqrt", None],
+        "max_leaf_nodes": [None, 2, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+    },
+}
+
+
+def parameter_screening(model_name, X, y):
+
+    model = model_dict[model_name]
+    param_grid = param_grid_dict[model_name]
+
+    grid_search = GridSearchCV(
+        model, param_grid, cv=5, scoring="neg_mean_squared_error"
+    )
+    grid_search.fit(X, y)
+    print(grid_search.best_params_)
+
+
+for model in model_dict.keys():
+    if model not in ["Linear Regression"]:
+        print(model)
+        parameter_screening(model, X_train, y_train)
+        print()
+
+# %%
 
 # %%
 
