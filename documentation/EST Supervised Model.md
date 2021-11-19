@@ -30,7 +30,7 @@ We have 67 features from the EPC dataset. Some of them are redudant as they are 
 
 The correlation matrix below shows the correlation between a reduced set of features. For the full matrix, check folder `/outputs/figures/correlation_matrix_complete.png`. The matrix allows us to identify a number of highly correlated features that bring additional information to the feature space, for example, lodgement date (highly correlated with inspection date).
 
-![correlation_matrix_reduced_JPEG.jpg](./img/correlation_matrix_reduced_JPEG.jpg)
+![correlation.png](./img/correlation.png)
 
 This chart shows an example for highly correlated features.
 
