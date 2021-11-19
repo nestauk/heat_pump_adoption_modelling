@@ -30,7 +30,7 @@ We have 67 features from the EPC dataset. Some of them are redudant as they are 
 
 The correlation matrix below shows the correlation between a reduced set of features. For the full matrix, check folder `/outputs/figures/correlation_matrix_complete.png`. The matrix allows us to identify a number of highly correlated features that bring additional information to the feature space, for example, lodgement date (highly correlated with inspection date).
 
-![correlation_matrix_reduced.png](./img/correlation_matrix_reduced.png)
+![correlation_matrix_reduced_JPEG.jpg](./img/correlation_matrix_reduced_JPEG.jpg)
 
 This chart shows an example for highly correlated features.
 
@@ -155,9 +155,96 @@ _To be completed_
 
 ## Models and Performance
 
-### Static HP Model
+### Static HP Model for predicting future HP installation
+
+Linear Support Vector Classifier on balanced set:
+
+```
+Number of samples: 10572
+Number of features: 87
+
+Accuracy train: 87.0%
+Accuracy test:   86.0%
+
+10-fold Cross Validation
+---------
+Accuracy: 0.87
+F1 Score: 0.87
+Recall: 0.85
+Precision: 0.89
+```
+
+![Validationset.png](./img/Validationset.png)
+
+Linear Support Vector Classifier on imbalanced set (90% non-HP):
+
+```
+Accuracy train: 93.0%
+Accuracy test:   92.0%
+
+10-fold Cross Validation
+---------
+
+Accuracy: 0.93
+F1 Score: 0.57
+Recall: 0.48
+Precision: 0.7
+```
+
+![FutureHPStatusCoefficientContributionsPCA.png](./img/FutureHPStatusCoefficientContributionsPCA.png)
+
+Most relevant features for predicting future HP installation:
+
+- Income Score (neg)
+- Wind turbine count
+- Entry Year
+- total floor area
+- Number of entries per building
+- Current C2 Emissions
+- Bungalows
+- Mains Gas Flag (neg)
+- Social rental
+- Main Heating Controls (neg)
 
 ### Temporal HP Model
+
+**HP Coverage**
+
+| Model                           | SME mean | Standard Deviation | Accuracy on 5% steps |
+| ------------------------------- | -------- | ------------------ | -------------------- |
+| SVM Regressor train             | 0.064    | 0.010              | 0.24                 |
+| SVM Regressor test              |          |                    | 0.22                 |
+| Linear Regression train         | 0.041    | 0.010              | 0.86                 |
+| Linear Regression test          |          |                    | 0.82                 |
+| Decision Tree Regressor train\* | 0.049    | 0.010              | 1.0                  |
+| Decision Tree Regressor test\*  |          |                    | 0.86                 |
+| Random Forest Regressor train   | 0.043    | 0.006              | 0.94                 |
+| Random Forest Regressor test    |          |                    | 0.89                 |
+
+- not parameter-screened yet
+
+![HP_random_forest.png](./img/HP_random_forest.png)
+
+![HP_random_forest_valid.png](./img/HP_random_forest_valid.png)
+
+![HP Coverage at t+1 using Random Forest Regressor on Training Set.png](./img/HP Coverage at t+1 using Random Forest Regressor on Training Set.png)
+
+![HP Coverage at t+1 using Random Forest Regressor on Validation Set.png](./img/HP Coverage at t+1 using Random Forest Regressor on Validation Set.png)
+
+**Growth**
+
+| Model                           | SME mean | Standard Deviation | Accuracy on 5% steps |
+| ------------------------------- | -------- | ------------------ | -------------------- |
+| Linear Regression train         | 0.020    | 0.002              | 0.96                 |
+| Linear Regression test          |          |                    | 0.96                 |
+| Decision Tree Regressor train\* | 0.049    | 0.010              | 1.00                 |
+| Decision Tree Regressor test\*  |          |                    | 0.93                 |
+| Random Forest Regressor train   | 0.012    | 0.002              | 0.98                 |
+| Random Forest Regressor test    |          |                    | 0.95                 |
+
+![Growth using Random Forest Regressor on Training Set.png](./img/Growth using Random Forest Regressor on Training Set.png)
+
+![Growth using Random Forest Regressor on Validation Set.png](./img/Growth using Random Forest Regressor on Validation Set.png)
 
 ## Some notes (will be deleted):
 
