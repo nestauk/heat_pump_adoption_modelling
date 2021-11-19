@@ -76,7 +76,7 @@ def get_gb_imd_data(
     return imd_df
 
 
-def merge_imd_with_other_set(imd_df, other_df):
+def merge_imd_with_other_set(imd_df, other_df, postcode_label="Postcode"):
     """Merge IMD data with other data based on postcode.
 
     Parameters
@@ -99,5 +99,7 @@ def merge_imd_with_other_set(imd_df, other_df):
     other_df["Postcode"] = other_df["Postcode"].str.replace(r" ", "")
 
     merged_df = pd.merge(imd_df, other_df, on=["Postcode"])
+
+    merged_df = merged_df.rename(columns={"Postcode": postcode_label})
 
     return merged_df
