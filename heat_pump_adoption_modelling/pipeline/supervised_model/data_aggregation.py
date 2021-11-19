@@ -5,7 +5,13 @@ import numpy as np
 
 def get_postcode_area(postcode):
 
-    part_1, _ = postcode.split(" ")
+    # print(postcode)
+    try:
+        part_1, _ = re.findall(r"([A-Z]{1,2}[0-9]{1,2})\s*([0-9][A-Z]{1,2})", postcode)[
+            0
+        ]
+    except IndexError:
+        return np.nan
     postcode_area = re.findall(r"([A-Z]+)", part_1)[0]
 
     return postcode_area
@@ -13,13 +19,24 @@ def get_postcode_area(postcode):
 
 def get_postcode_district(postcode):
 
-    part_1, _ = postcode.split(" ")
+    # print(postcode)
+    try:
+        part_1, _ = re.findall(r"([A-Z]{1,2}[0-9]{1,2})\s*([0-9][A-Z]{1,2})", postcode)[
+            0
+        ]
+    except IndexError:
+        return np.nan
     return part_1
 
 
 def get_postcode_sector(postcode):
 
-    part_1, part_2 = postcode.split(" ")
+    try:
+        part_1, part_2 = re.findall(
+            r"([A-Z]{1,2}[0-9]{1,2})\s*([0-9][A-Z]{1,2})", postcode
+        )[0]
+    except IndexError:
+        return np.nan
     postcode_sector = part_1 + re.findall(r"[0-9]", part_2)[0]
     return postcode_sector
 
