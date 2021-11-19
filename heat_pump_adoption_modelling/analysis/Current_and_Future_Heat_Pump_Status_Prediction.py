@@ -22,7 +22,7 @@
 # %load_ext autoreload
 # %autoreload 2
 
-from heat_pump_adoption_modelling.getters import epc_data
+from heat_pump_adoption_modelling.getters import epc_data, deprivation_data
 from heat_pump_adoption_modelling import PROJECT_DIR
 from heat_pump_adoption_modelling.pipeline.encoding import (
     feature_encoding,
@@ -80,6 +80,15 @@ epc_df.head()
 
 # %%
 epc_df = category_reduction.reduce_number_of_categories(epc_df)
+
+# %%
+print(epc_df.shape)
+imd_df = deprivation_data.get_gb_imd_data()
+epc_df = deprivation_data.merge_imd_with_other_set(
+    imd_df, epc_df, postcode_label="POSTCODE"
+)
+print(imd_df.shape)
+print(epc_df.shape)
 
 
 # %%
@@ -284,11 +293,11 @@ future_hp_df.columns
 # ## Prepare Training and Eval Data
 
 # %%
-static_model = ["Current HP Status", "Future HP Status"][0]
+static_model = ["Current HP Status", "Future HP Status"][1]
 balanced_set = True
 
 
-def balance_set(X, target_variable, ratio=0.5):
+def balance_set(X, target_variable, ratio=0.90):
 
     multiplicator = ratio / (1 - ratio)
 
@@ -327,6 +336,9 @@ else:
 
 
 X.fillna(X.mean(), inplace=True)
+print("Before", X.shape)
+X = X.dropna(axis="columns", how="all")
+print("After", X.shape)
 if balanced_set:
     X = balance_set(X, target_variable)
 
@@ -391,6 +403,15 @@ print("Number of samples:", X.shape[0])
 print("Number of features:", X.shape[1])
 print()
 
+best_params = {
+    "Linear Support Vector Classifier": {
+        "alpha": 0.0001,
+        "epsilon": 0.0001,
+        "penalty": "l2",
+        "tol": 0.001,
+    }
+}
+
 model_dict = {
     "Logistic Regression": LogisticRegression(random_state=42),
     "Linear Support Vector Classifier": SGDClassifier(random_state=42),
@@ -405,6 +426,9 @@ else:
 def train_and_evaluate(model_name):
 
     model = model_dict[model_name]
+
+    if model in best_params.keys():
+        model.set_params(**best_params[model_name])
     model.fit(X_train, y_train)
 
     pred_train = model.predict(X_train)
@@ -517,10 +541,21 @@ for i in range(len(sorted_fnames)):
     print(str(sorted_coef[0][i]))
 
 # %%
+from sklearn.model_selection import GridSearchCV
 
-# %%
 
-# %%
+param_grid = {
+    "penalty": ["l2", "l1", "elasticnet"],
+    "alpha": [0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1],
+    "epsilon": [0.0001, 0.0005, 0.001, 0.005, 0.01, 0.1],
+    "tol": [0.00001, 0.00005, 0.0001, 0.0005, 0.001, 0.01, 0.1],
+}
+
+model = SGDClassifier(random_state=42)
+
+grid_search = GridSearchCV(model, param_grid, cv=5, scoring="f1")
+grid_search.fit(X_train, y_train)
+print(grid_search.best_params_)
 
 # %%
 

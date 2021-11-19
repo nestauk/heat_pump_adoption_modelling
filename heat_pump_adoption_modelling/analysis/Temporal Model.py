@@ -19,7 +19,7 @@
 # %load_ext autoreload
 # %autoreload 2
 
-from heat_pump_adoption_modelling.getters import epc_data
+from heat_pump_adoption_modelling.getters import epc_data, deprivation_data
 from heat_pump_adoption_modelling import PROJECT_DIR
 from heat_pump_adoption_modelling.pipeline.encoding import (
     feature_encoding,
@@ -68,17 +68,32 @@ version = "preprocessed"  # _dedupl"
 
 # Load all available columns
 epc_df = epc_data.load_preprocessed_epc_data(
-    version=version, nrows=500000, usecols=None
+    version=version, nrows=5000000, usecols=None
 )
 
 
 epc_df.head()
 
 # %%
+print(epc_df.shape)
+imd_df = deprivation_data.get_gb_imd_data()
+epc_df = deprivation_data.merge_imd_with_other_set(
+    imd_df, epc_df, postcode_label="POSTCODE"
+)
+print(imd_df.shape)
+print(epc_df.shape)
+
+# %%
 POSTCODE_LEVEL = "POSTCODE_SECTOR"
 epc_df = data_aggregation.get_postcode_levels(epc_df, only_keep=POSTCODE_LEVEL)
 
 print(epc_df.columns)
+
+# %%
+epc_df.loc[epc_df[POSTCODE_LEVEL].isna()].head()
+
+# %%
+epc_df[POSTCODE_LEVEL].value_counts(dropna=True)
 
 # %%
 ordinal_features = [
@@ -174,14 +189,14 @@ def get_year_range_data(df, years):
     return year_range_df
 
 
-training_years = get_year_range_data(epc_df_encoded, [2008, 2009, 2010, 2011, 2012])
-prediction_years = get_year_range_data(epc_df_encoded, [2014, 2013, 2015, 2016])
+# training_years = get_year_range_data(epc_df_encoded, [2008, 2009, 2010, 2011, 2012])
+# prediction_years = get_year_range_data(epc_df_encoded, [2014, 2013, 2015, 2016])
 
 data_time_t = feature_engineering.filter_by_year(
     epc_df_encoded, "BUILDING_ID", 2015, selection="latest entry", up_to=True
 )
 data_time_t_plus_one = feature_engineering.filter_by_year(
-    epc_df_encoded, "BUILDING_ID", 2019, selection="latest entry", up_to=True
+    epc_df_encoded, "BUILDING_ID", 2018, selection="latest entry", up_to=True
 )
 
 # %%
@@ -218,21 +233,21 @@ def get_feature_count_grouped(
 
 n_hp_installed_current = get_feature_count_grouped(
     data_time_t, "HP_INSTALLED", POSTCODE_LEVEL, name="# HP at Time t"
-)  # [[True, POSTCODE_LEVEL]]
+)
 n_hp_installed_future = get_feature_count_grouped(
     data_time_t_plus_one, "HP_INSTALLED", POSTCODE_LEVEL, name="# HP at Time t+1"
 )
 n_hp_installed_total = get_feature_count_grouped(
     epc_df_encoded, "HP_INSTALLED", POSTCODE_LEVEL, name="Total # HP"
-)  # [[True, POSTCODE_LEVEL]]
+)
 
 total_basis = [data_time_t_plus_one, epc_df_encoded][0]
 n_prop_total = (
     total_basis.groupby([POSTCODE_LEVEL]).size().reset_index(name="# Properties")
 )
 
-print(n_hp_installed_training.shape)
-n_hp_installed_training.head()
+print(n_prop_total.shape)
+n_prop_total.head()
 
 # %%
 target_var_df = pd.merge(
@@ -366,11 +381,13 @@ cv = 3
 interval = 5
 
 best_params = {
-    "SVM Regressor": {"C": 5, "gamma": 0.1, "kernel": "rbf"},
+    "SVM Regressor": {"C": 10, "gamma": 0.01, "kernel": "rbf"},
     "Linear Regression": {},
-    "Decision Tree Regressor": {},  # {'max_depth': 11, 'max_features': None, 'max_leaf_nodes': 10, 'min_samples_leaf': 5, 'min_weight_fraction_leaf': 0.05, 'splitter': 'random'},
-    "Random Forest Regressor": {},
-}  # {'max_features': 12, 'n_estimators': 30}}
+    "Decision Tree Regressor": {},  # {'max_depth': 11, 'max_features': None,
+    # 'max_leaf_nodes': 10, 'min_samples_leaf': 5,
+    # 'min_weight_fraction_leaf': 0.05, 'splitter': 'random'},
+    "Random Forest Regressor": {"max_features": 12, "n_estimators": 30},
+}
 
 
 def display_scores(scores):
@@ -392,6 +409,12 @@ def train_and_evaluate(model_name):
 
     if TARGET_VARIABLE in ["HP_COVERAGE_FUTURE", "GROWTH"]:
 
+        variable_name = (
+            "HP Coverage at t+1"
+            if TARGET_VARIABLE == "HP_COVERAGE_FUTURE"
+            else "Growth"
+        )
+
         for set_name in ["train", "val"]:
 
             if set_name == "train":
@@ -407,12 +430,13 @@ def train_and_evaluate(model_name):
             print()
 
             preds[preds < 0] = 0.0
+            preds[preds > 1.0] = 1.0
 
             predictions, solutions, label_dict = utils.map_percentage_to_bin(
                 preds, sols, interval=interval
             )
 
-            overlap = (predictions == solutions).sum() / predictions.shape[0]
+            overlap = round((predictions == solutions).sum() / predictions.shape[0], 2)
             print("Category Accuracy with {}% steps : {}".format(interval, overlap))
 
             # Plot the confusion matrix for training set
@@ -420,11 +444,13 @@ def train_and_evaluate(model_name):
                 solutions,
                 predictions,
                 [label_dict[label] for label in sorted(set(solutions))],
-                title=TARGET_VARIABLE + ": " + set_name,
+                title="Confusion Matrix:\n{} using {} on {}".format(
+                    variable_name, model_name, set_name
+                ),
             )
 
             plt.scatter(preds, sols)
-            plt.title(TARGET_VARIABLE + ": " + set_name)
+            plt.title("{} using {} on {}".format(variable_name, model_name, set_name))
             plt.xlabel("Prediction")
             plt.ylabel("Ground Truth")
             plt.show()
@@ -483,6 +509,18 @@ for model in model_dict.keys():
         print(model)
         parameter_screening(model, X_train, y_train)
         print()
+
+# %%
+para_grid = {
+    "penalty": ["l2", "l1", "elasticnet"],
+    "alpha": [0.00001, 0.0001, 0.001, 0.01, 0.1, 1.0],
+    "epsilon": [0.001, 0.01, 0.1, 1.0],
+    "tol": [0.0001, 0.001, 0.01, 0.1, 1.0],
+}
+
+# %%
+
+# %%
 
 # %%
 
