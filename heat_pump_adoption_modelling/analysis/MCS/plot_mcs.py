@@ -1,20 +1,22 @@
+# File: heat_pump_adoption_modelling/analysis/MCS/plot_mcs.py
+"""Produce plots relating to heat pump costs/capacities:
+- Median costs by year and tech type
+- Mean SCOP by year and flow temp
+- Costs by ASHP capacity
+- ASHP capacities by property archetype
+- ASHP costs by property archetype
+
+"""
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
 from heat_pump_adoption_modelling import PROJECT_DIR
-from heat_pump_adoption_modelling.pipeline.MCS.load_mcs import load_inflation
-from heat_pump_adoption_modelling.pipeline.MCS.mcs_epc_joining import join_mcs_epc_data
-
-
-# /load in merged df
-# /merge with inflation (check?)
-# /line: median inflation-adjusted cost over time (2015-21) by tech
-# /line: mean scop over time (2016-21) by flow temp (35-55)
-# /v. boxplot: inf-adj cost by hp capacity (5-12, 14, 16), 2019-21 data
-# /add archetypes
-# /h. boxplot: capacities by archetype (2019-21 data)
-# /h. boxplot: inf-adj costs by archetype (2019-21 data)
+from heat_pump_adoption_modelling.getters.load_mcs import load_inflation
+from heat_pump_adoption_modelling.pipeline.preprocessing.mcs_epc_joining import (
+    join_mcs_epc_data,
+)
 
 
 def plottable_data(file_path=PROJECT_DIR / "outputs/mcs_epc.csv"):
@@ -134,7 +136,7 @@ def ashp_capacity_cost_boxplot(df):
         (df.year >= 2019) & (df.tech_type == "Air Source Heat Pump")
     ]
 
-    capacity_list = [5, 6, 7, 8, 9, 10, 11, 12, 14, 16]
+    capacity_list = range(5, 17)
 
     data_list = []
     for capacity in capacity_list:
@@ -154,10 +156,11 @@ def ashp_capacity_cost_boxplot(df):
         },
     )
 
+    ax.grid(axis="y", color="0.8")
     ax.set_ylim(0, 50000)
     ax.set_xlabel("HP capacity")
     ax.set_ylabel("Inflation-adjusted cost (£2021)")
-    ax.set_title("HP installation costs by capacity (2019-21)")
+    ax.set_title("ASHP installation costs by capacity (2019-21)")
 
     plt.setp(ax, xticklabels=capacity_list)
     plt.tight_layout()
@@ -166,6 +169,19 @@ def ashp_capacity_cost_boxplot(df):
 
 
 def bool_not(series):
+    """Given a series of bools and NAs, return a series
+    with NAs in the same places but bools inverted.
+
+    Parameters
+    ----------
+    series : pd.Series
+        A series of bools and NAs.
+
+    Return
+    ----------
+    result : pd.Series
+        A series with NAs in the same places and bools inverted.
+    """
 
     result = pd.Series(np.repeat(pd.NA, len(series)))
 
@@ -198,10 +214,16 @@ def generate_archetype_dict(df):
                     (df.PROPERTY_TYPE == "House")
                     & (
                         df.BUILT_FORM.isin(
-                            ["Semi-Detached", "Mid-Terrace", "End-Terrace"]
+                            [
+                                "Semi-Detached",
+                                "Mid-Terrace",
+                                "End-Terrace",
+                                "Enclosed End-Terrace",
+                                "Enclosed Mid-Terrace",
+                            ]
                         )
                     )
-                )  # enclosed??
+                )
             )
             & (df.built_post_1950),
         },
@@ -251,6 +273,8 @@ def ashp_archetypes_boxplot(df, variable):
     ashp_data_list = []
 
     archetype_dict = generate_archetype_dict(df)
+    # off_scale = 0
+    # total = 0
 
     for info in archetype_dict.values():
         filtered_df = df.loc[
@@ -260,6 +284,8 @@ def ashp_archetypes_boxplot(df, variable):
         ]
         values = list(filtered_df[variable].dropna())
         ashp_data_list.append(values)
+        # off_scale += sum([value > 30000 for value in values])
+        # total += len(values)
 
     ashp_data_list = ashp_data_list[::-1]
 
@@ -287,6 +313,16 @@ def ashp_archetypes_boxplot(df, variable):
         ax.set_ylabel("Property type")
         ax.set_title("ASHP capacities by property type (2019-21)")
 
+    ax.grid(axis="x", color="0.8")
+
+    # percentage_off_scale = round(off_scale / total * 100, 2)
+
+    # plt.figtext(0.99, 0.01,
+    #     "Only 2019-21 data used due to increased data quality post-2019.\n{}% of points lie outside axis limits.".format(
+    #         percentage_off_scale
+    #     ), horizontalalignment="right", fontsize = "small"
+    # )
+
     plt.setp(ax, yticklabels=[info["name"] for info in archetype_dict.values()][::-1])
     plt.tight_layout()
 
@@ -298,9 +334,11 @@ def ashp_archetypes_boxplot(df, variable):
         )
 
 
-def main():
+def main(file_path=None):
     """Main function: Plots MCS data."""
-    data = plottable_data()
+    print("Loading data...")
+    data = plottable_data(file_path=file_path)
+    print("Plotting...")
     plot_median_costs(data)
     scop_trend_plot(data)
     ashp_capacity_cost_boxplot(data)
