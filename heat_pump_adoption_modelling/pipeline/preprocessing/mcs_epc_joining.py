@@ -1,4 +1,4 @@
-# File: heat_pump_adoption_modelling/pipeline/MCS/mcs_epc_joining.py
+# File: heat_pump_adoption_modelling/pipeline/preprocessing/mcs_epc_joining.py
 """Joining the MCS and EPC datasets.
 Overall process is as follows:
 - Standardise address and postcode fields
@@ -18,8 +18,8 @@ import recordlinkage as rl
 import time
 
 from heat_pump_adoption_modelling import PROJECT_DIR, get_yaml_config, Path
-from heat_pump_adoption_modelling.pipeline.MCS.load_mcs import load_domestic_hps
-from heat_pump_adoption_modelling.getters import epc_data
+from heat_pump_adoption_modelling.getters.load_mcs import load_domestic_hps
+from heat_pump_adoption_modelling.getters.epc_data import load_preprocessed_epc_data
 
 config = get_yaml_config(
     Path(str(PROJECT_DIR) + "/heat_pump_adoption_modelling/config/base.yaml")
@@ -280,8 +280,8 @@ def join_mcs_epc_data(
     if epcs is None:
         print("Preparing EPC data...")
         fields_of_interest = address_fields + characteristic_fields
-        epcs = epc_data.load_preprocessed_epc_data(
-            version="preprocessed", usecols=fields_of_interest
+        epcs = load_preprocessed_epc_data(
+            version="preprocessed", usecols=fields_of_interest, low_memory=True
         )
         epcs = prepare_epcs(epcs)
 

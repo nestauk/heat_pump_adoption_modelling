@@ -1,4 +1,4 @@
-# File: heat_pump_adoption_modelling/pipeline/MCS/load_mcs.py
+# File: heat_pump_adoption_modelling/getters/MCS/load_mcs.py
 """Loading MCS heat pump records and inflation multipliers."""
 
 import pandas as pd
@@ -46,7 +46,7 @@ mcs_colnames_dict = {
 }
 
 
-def load_domestic_hps():
+def load_domestic_hps(from_file=False, save=True):
     """Load domestic MCS HP installation data from file
     and performs some cleaning.
 
@@ -64,7 +64,7 @@ def load_domestic_hps():
         All MCS heat pump installation records with 'domestic' installation type.
     """
 
-    if Path(str(PROJECT_DIR) + domestic_hp_filepath).is_file():
+    if from_file:
         dhps = pd.read_csv(str(PROJECT_DIR) + domestic_hp_filepath)
 
     else:  # load all HP data and process
@@ -99,6 +99,10 @@ def load_domestic_hps():
 
         dhps = dhps.iloc[most_recent_indices]
 
+        # Drop any records relating to HPs with capacity >45KW
+        # as these are likely to be mislabelled non-domestic installations
+        dhps = dhps.loc[dhps.capacity <= max_capacity]
+
         # Extract information from product column
         product_regex_dict = {
             "product_id": "MCS Product Number: ([^\|]+)",
@@ -119,11 +123,10 @@ def load_domestic_hps():
         dhps.loc[(dhps["rhi_status"] == "Unspecified"), "rhi"] = False
         dhps["rhi"].mask(dhps["rhi_status"].isna())
 
-        # Replace unreasonable cost and capacity values with NA
+        # Replace unreasonable cost values with NA
         dhps["cost"] = dhps["cost"].mask(
             (dhps["cost"] == 0) | (dhps["cost"] > max_cost)
         )
-        dhps["capacity"] = dhps["capacity"].mask(dhps["capacity"] > max_capacity)
         dhps["flow_temp"] = pd.to_numeric(dhps["flow_temp"])
         dhps["flow_temp"] = dhps["flow_temp"].mask(dhps["flow_temp"] <= 0)
         dhps["scop"] = pd.to_numeric(dhps["scop"].mask(dhps["scop"] == "Unspecified"))
@@ -132,7 +135,8 @@ def load_domestic_hps():
 
         dhps = dhps.reset_index(drop=True)
 
-        dhps.to_csv(str(PROJECT_DIR) + domestic_hp_filepath)
+        if save:
+            dhps.to_csv(str(PROJECT_DIR) + domestic_hp_filepath)
 
     return dhps
 
