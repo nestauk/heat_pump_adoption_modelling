@@ -30,6 +30,7 @@ address_fields = config["MCS_EPC_ADDRESS_FIELDS"]
 characteristic_fields = config["MCS_EPC_CHARACTERISTIC_FIELDS"]
 matching_parameter = config["MCS_EPC_MATCHING_PARAMETER"]
 merged_path = config["MCS_EPC_MERGED_PATH"]
+supervised_model_features = config["EPC_PREPROC_FEAT_SELECTION"]
 
 #### UTILS
 
@@ -179,6 +180,8 @@ def prepare_epcs(epcs):
         )
     ]
 
+    epcs["original_address"] = epcs["ADDRESS1"] + epcs["ADDRESS2"] + epcs["POSTCODE"]
+
     return epcs
 
 
@@ -280,6 +283,7 @@ def join_mcs_epc_data(
     if epcs is None:
         print("Preparing EPC data...")
         fields_of_interest = address_fields + characteristic_fields
+        #  fields_of_interest =
         epcs = load_preprocessed_epc_data(
             version="preprocessed", usecols=fields_of_interest, low_memory=True
         )
@@ -317,6 +321,8 @@ def join_mcs_epc_data(
         )
 
     print("Joining the data...")
+
+    print(epcs.columns)
     merged = (
         dhps.reset_index()
         # Join MCS records to the index-matching df on MCS index
@@ -343,6 +349,8 @@ def join_mcs_epc_data(
         merged = merged.drop(columns="standardised_address_y")
     else:
         merged = merged.rename(columns={"standardised_address_y": "epc_address"})
+
+    print(merged.columns)
 
     if save:
         merged.to_csv(str(PROJECT_DIR) + merged_path)
