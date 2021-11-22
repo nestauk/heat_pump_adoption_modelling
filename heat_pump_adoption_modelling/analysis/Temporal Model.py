@@ -117,11 +117,22 @@ mcs_data.columns = ["HP_INSTALL_DATE", "Type of HP", "original_address"]
 mcs_data.head()
 
 # %%
+epc_df["original_address"].unique()
+
+# %%
+mcs_data["original_address"].unique()
+
+# %%
+list(set(epc_df["original_address"]) & set(mcs_data["original_address"]))
+
+# %%
 print(epc_df.shape)
 print(mcs_data.shape)
-combo = pd.merge(epc_df, mcs_data, on="original_address")
+combo = pd.merge(epc_df, mcs_data, on=["original_address"])
 print(combo.shape)
 combo.head()
+
+# %%
 
 # %%
 epc_df.loc[epc_df[POSTCODE_LEVEL].isna()].head()
