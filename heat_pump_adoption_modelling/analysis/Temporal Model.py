@@ -68,7 +68,7 @@ version = "preprocessed"  # _dedupl"
 
 # Load all available columns
 epc_df = epc_data.load_preprocessed_epc_data(
-    version=version, nrows=5000000, usecols=None
+    version=version, nrows=500000, usecols=None
 )
 
 
@@ -84,10 +84,44 @@ print(imd_df.shape)
 print(epc_df.shape)
 
 # %%
+epc_df["original_address"] = (
+    epc_df["ADDRESS1"] + epc_df["ADDRESS2"] + epc_df["POSTCODE"]
+)
+
+# %%
+epc_df.head()
+
+# %%
 POSTCODE_LEVEL = "POSTCODE_SECTOR"
 epc_df = data_aggregation.get_postcode_levels(epc_df, only_keep=POSTCODE_LEVEL)
 
 print(epc_df.columns)
+
+# %% [markdown]
+# 60690 MCS samples
+# 51150 with EPC match
+
+# %%
+mcs_data = pd.read_csv(
+    str(PROJECT_DIR) + "/outputs/mcs_epc.csv",
+    usecols=["date", "tech_type", "original_address"],
+)
+
+print(mcs_data.shape)
+mcs_data.head()
+
+# %%
+mcs_data = mcs_data.loc[~mcs_data["original_address"].isna()]
+print(mcs_data.shape)
+mcs_data.columns = ["HP_INSTALL_DATE", "Type of HP", "original_address"]
+mcs_data.head()
+
+# %%
+print(epc_df.shape)
+print(mcs_data.shape)
+combo = pd.merge(epc_df, mcs_data, on="original_address")
+print(combo.shape)
+combo.head()
 
 # %%
 epc_df.loc[epc_df[POSTCODE_LEVEL].isna()].head()
