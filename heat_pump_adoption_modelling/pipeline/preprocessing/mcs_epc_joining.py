@@ -161,6 +161,8 @@ def prepare_epcs(epcs):
     epcs : pandas.Dataframe
         Dataframe containing EPC records with added fields."""
 
+    epcs["original_address"] = epcs["ADDRESS1"] + epcs["ADDRESS2"] + epcs["POSTCODE"]
+
     # Remove spaces, uppercase and strip whitespace from
     # postcodes in order to exact match on this field
     epcs["standardised_postcode"] = (
@@ -179,8 +181,6 @@ def prepare_epcs(epcs):
             epcs["standardised_address"].fillna(""), epcs["POSTCODE"].fillna("")
         )
     ]
-
-    epcs["original_address"] = epcs["ADDRESS1"] + epcs["ADDRESS2"] + epcs["POSTCODE"]
 
     return epcs
 
@@ -284,6 +284,7 @@ def join_mcs_epc_data(
         print("Preparing EPC data...")
         fields_of_interest = address_fields + characteristic_fields
         #  fields_of_interest =
+
         epcs = load_preprocessed_epc_data(
             version="preprocessed", usecols=fields_of_interest, low_memory=True
         )
