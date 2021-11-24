@@ -68,11 +68,30 @@ version = "preprocessed"  # _dedupl"
 
 # Load all available columns
 epc_df = epc_data.load_preprocessed_epc_data(
-    version=version, nrows=500000, usecols=None
+    version=version,
+    # nrows=10000000,
+    usecols=None,
 )
 
 
 epc_df.head()
+
+# %%
+for i in range(10000, 5000000, 10):
+    grouped_by = epc_df.groupby("POSTCODE").size().reset_index(name="count")[:i]
+    n_samples = grouped_by["count"].sum()
+    print(i)
+    print(n_samples)
+    print()
+    if n_samples > 5000000:
+        sample_ids = list(grouped_by["POSTCODE"])
+        print(sample_ids)
+        epc_df = epc_df.loc[epc_df["POSTCODE"].isin(sample_ids)]
+        break
+
+
+# %%
+epc_df.to_csv(str(PROJECT_DIR) + "/outputs/epc_df.csv")
 
 # %%
 print(epc_df.shape)
@@ -87,13 +106,19 @@ print(epc_df.shape)
 epc_df["original_address"] = (
     epc_df["ADDRESS1"] + epc_df["ADDRESS2"] + epc_df["POSTCODE"]
 )
+epc_df["original_address"] = (
+    epc_df["original_address"].str.lower().replace(r"\s+", "", regex=True)
+)
 
 # %%
-epc_df.head()
+epc_df.loc[epc_df["HP_TYPE"] == "air source heat pump"].head()
+
+# 	northlastsfarmhouseunknownab140pe
+#   northlastsfarmhouseunknownab140pe
 
 # %%
 POSTCODE_LEVEL = "POSTCODE_SECTOR"
-epc_df = data_aggregation.get_postcode_levels(epc_df, only_keep=POSTCODE_LEVEL)
+epc_df = data_aggregation.get_postcode_levels(epc_df)  # , only_keep=POSTCODE_LEVEL)
 
 print(epc_df.columns)
 
@@ -111,34 +136,158 @@ print(mcs_data.shape)
 mcs_data.head()
 
 # %%
+print(mcs_data.shape)
 mcs_data = mcs_data.loc[~mcs_data["original_address"].isna()]
+mcs_data["original_address"] = (
+    mcs_data["original_address"].str.lower().replace(r"\s+", "", regex=True)
+)
 print(mcs_data.shape)
 mcs_data.columns = ["HP_INSTALL_DATE", "Type of HP", "original_address"]
+mcs_data["HP_INSTALL_DATE"] = (
+    mcs_data["HP_INSTALL_DATE"].str.replace(r"-", "", regex=True).astype("float")
+)
 mcs_data.head()
 
 # %%
-epc_df["original_address"].unique()
+date_dict = mcs_data.set_index("original_address").to_dict()["HP_INSTALL_DATE"]
+hp_type_dict = mcs_data.set_index("original_address").to_dict()["Type of HP"]
 
 # %%
-mcs_data["original_address"].unique()
+epc_df["HP_INSTALL_DATE"] = epc_df["original_address"].map(date_dict)
 
 # %%
-list(set(epc_df["original_address"]) & set(mcs_data["original_address"]))
+first_hp_appearance = (
+    epc_df.loc[epc_df["HP_INSTALLED"] == True]
+    .groupby("BUILDING_ID")
+    .min(["INSPECTION_DATE_AS_NUM"])
+    .reset_index()[["INSPECTION_DATE_AS_NUM", "BUILDING_ID"]]
+)
+first_hp_appearance.columns = ["FIRST_HP_MENTION", "BUILDING_ID"]
+first_hp_appearance.head()
 
 # %%
 print(epc_df.shape)
-print(mcs_data.shape)
-combo = pd.merge(epc_df, mcs_data, on=["original_address"])
-print(combo.shape)
-combo.head()
+epc_df = pd.merge(epc_df, first_hp_appearance, on="BUILDING_ID", how="outer")
+print(epc_df.shape)
+epc_df.head()
+
 
 # %%
+epc_df["INSPECTION_YEAR"] = round(epc_df["INSPECTION_DATE_AS_NUM"] / 10000)
+epc_df["HP_INSTALL_YEAR"] = round(epc_df["HP_INSTALL_DATE"] / 10000)
+epc_df["FIRST_HP_MENTION_YEAR"] = round(epc_df["FIRST_HP_MENTION"] / 10000)
+epc_df["FIRST_HP_MENTION_YEAR"].loc[~epc_df["HP_INSTALL_YEAR"].isna()].head()
 
 # %%
-epc_df.loc[epc_df[POSTCODE_LEVEL].isna()].head()
+epc_df["MCS_AVAILABLE"] = np.where(epc_df["HP_INSTALL_DATE"].isna(), False, True)
+epc_df["HAS_HP_AT_SOME_POINT"] = np.where(
+    epc_df["FIRST_HP_MENTION"].isna(), False, True
+)
+epc_df["HAS_HP_AT_SOME_POINT"].value_counts(dropna=False)
+epc_df.head()
+
 
 # %%
-epc_df[POSTCODE_LEVEL].value_counts(dropna=True)
+epc_df[
+    (epc_df["HAS_HP_AT_SOME_POINT"] == True) & (epc_df["HP_INSTALLED"] == False)
+].head()
+
+# %%
+mcs_available = epc_df["MCS_AVAILABLE"]
+
+no_mcs_or_epc = (~epc_df["MCS_AVAILABLE"]) & (epc_df["HP_INSTALLED"] == False)
+
+no_mcs_but_epc_hp = (~epc_df["MCS_AVAILABLE"]) & (epc_df["HP_INSTALLED"] == True)
+
+mcs_and_epc_hp = (epc_df["MCS_AVAILABLE"]) & (epc_df["HP_INSTALLED"] == True)
+
+no_epc_but_mcs_hp = (epc_df["MCS_AVAILABLE"]) & (epc_df["HP_INSTALLED"] == False)
+
+
+either_hp = (epc_df["MCS_AVAILABLE"]) | (epc_df["HP_INSTALLED"] == True)
+
+
+epc_hp_mention_before_mcs = epc_df["FIRST_HP_MENTION_YEAR"] < epc_df["HP_INSTALL_YEAR"]
+mcs_before_epc_hp_mention = epc_df["FIRST_HP_MENTION_YEAR"] > epc_df["HP_INSTALL_YEAR"]
+first_mention_same_as_mcs = epc_df["FIRST_HP_MENTION_YEAR"] == epc_df["HP_INSTALL_YEAR"]
+
+epc_entry_before_mcs = epc_df["INSPECTION_YEAR"] < epc_df["HP_INSTALL_YEAR"]
+mcs_before_epc_entry = epc_df["INSPECTION_YEAR"] > epc_df["HP_INSTALL_YEAR"]
+epc_entry_same_as_mcs = epc_df["INSPECTION_YEAR"] == epc_df["HP_INSTALL_YEAR"]
+
+# %%
+# -----
+# NO MCS/EPC HP entry
+epc_df["HP_INSTALLED"] = np.where((no_mcs_or_epc), False, epc_df["HP_INSTALLED"])
+
+epc_df["HP_INSTALL_DATE"] = np.where((no_mcs_or_epc), np.nan, epc_df["HP_INSTALL_DATE"])
+
+# -----
+# NO MCS entry but EPC HP
+epc_df["HP_INSTALLED"] = np.where((no_mcs_but_epc_hp), True, epc_df["HP_INSTALLED"])
+
+epc_df["HP_INSTALL_DATE"] = np.where(
+    (no_mcs_but_epc_hp), epc_df["FIRST_HP_MENTION"], epc_df["HP_INSTALL_DATE"]
+)
+
+# -----
+# MCS and EPC HP entry
+epc_df["HP_INSTALLED"] = np.where((mcs_and_epc_hp), True, epc_df["HP_INSTALLED"])
+
+epc_df["HP_INSTALL_DATE"] = np.where(
+    (mcs_and_epc_hp),
+    epc_df[["FIRST_HP_MENTION", "HP_INSTALL_DATE"]].min(axis=1),
+    epc_df["HP_INSTALL_DATE"],
+)
+# -----
+# MCS but EPC HP entry with same year
+
+epc_df["HP_INSTALLED"] = np.where(
+    (no_epc_but_mcs_hp & epc_entry_same_as_mcs), True, epc_df["HP_INSTALLED"]
+)
+
+epc_df["HP_INSTALL_DATE"] = np.where(
+    (no_epc_but_mcs_hp & epc_entry_same_as_mcs),
+    epc_df["HP_INSTALL_DATE"],
+    epc_df["HP_INSTALL_DATE"],
+)
+
+# ---
+# MCS but EPC HP with MCS before first EPC entry
+
+epc_df["HP_INSTALLED"] = np.where(
+    (no_epc_but_mcs_hp & mcs_before_epc_entry), False, epc_df["HP_INSTALLED"]
+)
+
+epc_df["HP_INSTALL_DATE"] = np.where(
+    (no_epc_but_mcs_hp & mcs_before_epc_entry), np.nan, epc_df["HP_INSTALL_DATE"]
+)
+
+# ---
+# MCS but EPC HP with MCS after first EPC entry
+
+epc_df["HP_INSTALLED"] = np.where(
+    (no_epc_but_mcs_hp & epc_entry_before_mcs), False, epc_df["HP_INSTALLED"]
+)
+
+epc_df["HP_INSTALL_DATE"] = np.where(
+    (no_epc_but_mcs_hp & epc_entry_before_mcs), np.nan, epc_df["HP_INSTALL_DATE"]
+)
+
+# %%
+no_future_hp_entry = epc_df[
+    no_epc_but_mcs_hp & epc_entry_before_mcs & (epc_df["HAS_HP_AT_SOME_POINT"] == False)
+]
+
+no_future_hp_entry["HP_INSTALLED"] = True
+
+print(epc_df.shape)
+print(no_future_hp_entry.shape)
+epc_df = pd.concat([epc_df, no_future_hp_entry])
+print(epc_df.shape)
+
+# %%
+print(epc_df.shape)
 
 # %%
 ordinal_features = [
@@ -181,8 +330,8 @@ drop_features = [
     "ENERGY_RATING_CAT",
     "UNIQUE_ADDRESS",
     "INSPECTION_DATE",
-    "MAIN_FUEL",
-    # "HEATING_SYSTEM",
+    # "MAIN_FUEL",
+    #  "HEATING_SYSTEM",
     "HP_TYPE",
 ]
 
@@ -199,6 +348,31 @@ epc_df_encoded = feature_encoding.feature_encoding_pipeline(
 epc_df_encoded.head()
 
 # %%
+# epc_df_encoded.to_csv(str(PROJECT_DIR)+'/outputs/epc_encoded.csv')
+epc_df_encoded = pd.read_csv(str(PROJECT_DIR) + "/outputs/epc_encoded.csv")
+
+# %%
+epc_df_encoded.columns
+
+# %%
+epc_df_encoded.shape
+
+# %%
+drop_features = [
+    "original_address",
+    "MCS_AVAILABLE",
+    "HAS_HP_AT_SOME_POINT",
+    "HP_INSTALL_DATE",
+    "FIRST_HP_MENTION",
+    "INSPECTION_YEAR",
+    "HP_INSTALL_YEAR",
+    "FIRST_HP_MENTION_YEAR",
+    "HEATING_SYSTEM",
+    "HEATING_FUEL",
+]
+
+epc_df_encoded.drop(columns=drop_features, inplace=True)
+
 numeric_features = epc_df_encoded.select_dtypes(include=np.number).columns.tolist()
 print(numeric_features)
 print(len(numeric_features))
@@ -208,9 +382,13 @@ categorical_features = [
     if (feature not in ordinal_features) and (feature not in numeric_features)
 ]
 
+# %%
+POSTCODE_LEVEL = "POSTCODE_SECTOR"
+
 categorical_features = [
     f for f in categorical_features if f not in [POSTCODE_LEVEL, "HP_INSTALLED"]
 ]
+
 print(categorical_features)
 print(len(categorical_features))
 
@@ -238,11 +416,12 @@ def get_year_range_data(df, years):
 # prediction_years = get_year_range_data(epc_df_encoded, [2014, 2013, 2015, 2016])
 
 data_time_t = feature_engineering.filter_by_year(
-    epc_df_encoded, "BUILDING_ID", 2015, selection="latest entry", up_to=True
+    epc_df_encoded, "BUILDING_ID", 2012, selection="latest entry", up_to=True
 )
 data_time_t_plus_one = feature_engineering.filter_by_year(
-    epc_df_encoded, "BUILDING_ID", 2018, selection="latest entry", up_to=True
+    epc_df_encoded, "BUILDING_ID", 2015, selection="latest entry", up_to=True
 )
+del epc_df_encoded
 
 # %%
 num_agglomerated = (
