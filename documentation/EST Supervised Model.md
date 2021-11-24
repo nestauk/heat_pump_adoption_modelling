@@ -30,11 +30,11 @@ We have 67 features from the EPC dataset. Some of them are redudant as they are 
 
 The correlation matrix below shows the correlation between a reduced set of features. For the full matrix, check folder `/outputs/figures/correlation_matrix_complete.png`. The matrix allows us to identify a number of highly correlated features that bring additional information to the feature space, for example, lodgement date (highly correlated with inspection date).
 
-![correlation.png](./img/correlation.png)
+<img src="./img/correlation.png" width="75%">
 
 This chart shows an example for highly correlated features.
 
-![Highly correlated features.jpg](./img/Highly correlated features.jpg)
+<img src="./img/Highly correlated features.jpg" width="75%">
 
 While interesting to analyse the correlations between features, we only discard few features using this method with very high correlations: LODGEMENT_DATE, INSPECTION_DATE (as string), CURR_ENERGY_RATING_NUM, ENERGY_RATING_CAT, UNIQUE_ADDRESS, MAINHEAT_DESCRIPTION, MAINHEAT_SYSTEM.
 
@@ -139,7 +139,7 @@ Since we have a large feature space (= large number of features), we perform dim
 
 In case of the static model, this is reduces the number of features from 87 to 24.
 
-![PCA.png](./img/PCA.png)
+<img src="./img/PCA.png" width="70%">
 
 Finally, we standardise our data using a Min-Max scaler.
 
@@ -174,7 +174,7 @@ Recall: 0.85
 Precision: 0.89
 ```
 
-![Validationset.png](./img/Validationset.png)
+<img src="./img/Validationset.png" width="40%">
 
 Linear Support Vector Classifier on imbalanced set (90% non-HP):
 
@@ -191,7 +191,7 @@ Recall: 0.48
 Precision: 0.7
 ```
 
-![FutureHPStatusCoefficientContributionsPCA.png](./img/FutureHPStatusCoefficientContributionsPCA.png)
+<img src="./img/FutureHPStatusCoefficientContributionsPCA.png" width="90%">
 
 Most relevant features for predicting future HP installation:
 
@@ -223,13 +223,13 @@ Most relevant features for predicting future HP installation:
 
 - not parameter-screened yet
 
-![HP_random_forest.png](./img/HP_random_forest.png)
+<img src="./img/HP_random_forest.png" width="60%">
 
-![HP_random_forest_valid.png](./img/HP_random_forest_valid.png)
+<img src="./img/HP_random_forest_valid.png" width="60%">
 
-![HP Coverage at t+1 using Random Forest Regressor on Training Set.png](./img/HP Coverage at t+1 using Random Forest Regressor on Training Set.png)
+<img src="./img/HP Coverage at t+1 using Random Forest Regressor on Training Set.png" width="60%">
 
-![HP Coverage at t+1 using Random Forest Regressor on Validation Set.png](./img/HP Coverage at t+1 using Random Forest Regressor on Validation Set.png)
+<img src="./img/HP Coverage at t+1 using Random Forest Regressor on Validation Set.png" width="60%">
 
 **Growth**
 
@@ -242,9 +242,9 @@ Most relevant features for predicting future HP installation:
 | Random Forest Regressor train   | 0.012    | 0.002              | 0.98                 |
 | Random Forest Regressor test    |          |                    | 0.95                 |
 
-![Growth using Random Forest Regressor on Training Set.png](./img/Growth using Random Forest Regressor on Training Set.png)
+<img src="./img//Growth using Random Forest Regressor on Training Set.png" width="60%">
 
-![Growth using Random Forest Regressor on Validation Set.png](./img/Growth using Random Forest Regressor on Validation Set.png)
+<img src="./img//Growth using Random Forest Regressor on Validation Set.png" width="60%">
 
 ## Some notes (will be deleted):
 
