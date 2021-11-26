@@ -203,7 +203,7 @@ def one_hot_encoding(df, features, verbose=True):
         one_hot = pd.get_dummies(df[feat])
 
         # Create new column names
-        one_hot.columns = [feat + ": " + cat for cat in one_hot.columns]
+        one_hot.columns = [feat + ": " + str(cat) for cat in one_hot.columns]
 
         # Join enocoded features with original df
         df = df.join(one_hot)
@@ -293,6 +293,8 @@ def feature_encoding_pipeline(
             one_hot_features = [
                 f for f in categorical_features if f not in target_variables
             ]
+
+            print(one_hot_features)
 
         # One-hot encoding
         df = one_hot_encoding(df, one_hot_features)
