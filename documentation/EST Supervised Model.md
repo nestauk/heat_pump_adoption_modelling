@@ -38,6 +38,12 @@ This chart shows an example for highly correlated features.
 
 While interesting to analyse the correlations between features, we only discard few features using this method with very high correlations: LODGEMENT_DATE, INSPECTION_DATE (as string), CURR_ENERGY_RATING_NUM, ENERGY_RATING_CAT, UNIQUE_ADDRESS, MAINHEAT_DESCRIPTION, MAINHEAT_SYSTEM.
 
+### Integration of MCS Installation Dates
+
+Using address matching, we find matches for 51150 out of 60690 domestic MCS entries. For EPC entries with MCS matches we update the heat pump status and installation date if necessary. We process the different cases according to this flowchart.
+
+<img src="./img/mcs_epc.png" width="85%">
+
 ### Target Variables
 
 For the static model that predicts the current heat pump status of a property, the target variable is HP_INSTALLED. The features HP_SYSTEM, HP_TYPE and HP_INSTALLED are derived from MAINHEAT_DESCRIPTION (describing the current heating system) and strongly corrlate with them and thus all of them need to be removed from the training data X.
@@ -246,6 +252,14 @@ Most relevant features for predicting future HP installation:
 
 <img src="./img//Growth using Random Forest Regressor on Validation Set.png" width="60%">
 
+## To Do
+
+- [ ] X: ground truth, y : error, relatiive error
+- [ ] Map with predictions, ground truths and errors
+- [ ] Pick interesting postcodes
+- [ ] Predict until 2025
+- [ ] Plot decision tree
+
 ## Some notes (will be deleted):
 
 - How to deal with NaN? Set to 0, -1, 999? Drop?
@@ -253,8 +267,8 @@ Most relevant features for predicting future HP installation:
 - Try different ratios
 - variance of samples in negative samples reflects variance of population
 - for numeric; mean or median, more rigourosly NAn values
-- also try with imbalanced set, 99%
 
+- also try with imbalanced set, 99%
 - predict change in following years
 - time window: larger windows to predict next year(s)
 - do predictors change over time?
@@ -262,3 +276,19 @@ Most relevant features for predicting future HP installation:
 - What about prediction probabiltities for linear model? What do households on decision boundary look like?
 
 - Feature ablation: if not sure about feature, remove and look at influence
+
+NEWER NOTES
+
+Done:
+
+- Include MCS
+- Make sure to drop duplicates
+
+Inspection:
+Pull out some interesting postcodes and see what went wrong/right
+What are we predicting right or wrong? Color code tenure type in error map or predictions
+X: ground truth, y : error, relatiive error
+Predict up to 2025
+Different windows: time t+1 = 1-2-3 years
+What information is missing?
+Broader limitations of approach?
