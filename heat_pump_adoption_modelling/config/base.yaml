@@ -147,6 +147,9 @@ MCS_EPC_CHARACTERISTIC_FIELDS:
     "FLOOR_ENERGY_EFF",
     "WALLS_ENERGY_EFF",
     "HP_INSTALLED",
+    "TENURE",
+    "CURRENT_ENERGY_RATING",
+    "LOCAL_AUTHORITY_LABEL",
   ]
 MCS_HP_PATH: "/inputs/MCS_data/mcs_heat_pumps.xlsx"
 MCS_DOMESTIC_HP_PATH: "/outputs/mcs_domestic_hps.csv"
