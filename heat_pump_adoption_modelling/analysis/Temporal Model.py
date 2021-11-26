@@ -77,7 +77,10 @@ epc_df = epc_data.load_preprocessed_epc_data(
 epc_df.head()
 
 # %%
-for i in range(10000, 5000000, 10):
+epc_df.shape
+
+# %%
+for i in range(250000, 5000000, 1000):
     grouped_by = epc_df.groupby("POSTCODE").size().reset_index(name="count")[:i]
     n_samples = grouped_by["count"].sum()
     print(i)
@@ -86,12 +89,20 @@ for i in range(10000, 5000000, 10):
     if n_samples > 5000000:
         sample_ids = list(grouped_by["POSTCODE"])
         print(sample_ids)
-        epc_df = epc_df.loc[epc_df["POSTCODE"].isin(sample_ids)]
+        epc_df_reduced = epc_df.loc[epc_df["POSTCODE"].isin(sample_ids)]
         break
 
 
+epc_df_reduced.shape
+
 # %%
-epc_df.to_csv(str(PROJECT_DIR) + "/outputs/epc_df.csv")
+epc_df_reduced.shape
+
+# %%
+epc_df_reduced.to_csv(str(PROJECT_DIR) + "/outputs/epc_df_reduced.csv")
+
+# %%
+epc_df = epc_df_reduced
 
 # %%
 print(epc_df.shape)
@@ -313,6 +324,7 @@ ordinal_features = [
 drop_features = [
     "BUILDING_REFERENCE_NUMBER",
     "ADDRESS1",
+    "ADDRESS2",
     "POSTTOWN",
     "LODGEMENT_DATE",
     "CO2_EMISS_CURR_PER_FLOOR_AREA",
@@ -348,11 +360,8 @@ epc_df_encoded = feature_encoding.feature_encoding_pipeline(
 epc_df_encoded.head()
 
 # %%
-# epc_df_encoded.to_csv(str(PROJECT_DIR)+'/outputs/epc_encoded.csv')
-epc_df_encoded = pd.read_csv(str(PROJECT_DIR) + "/outputs/epc_encoded.csv")
-
-# %%
-epc_df_encoded.columns
+# epc_df_encoded.to_csv(str(PROJECT_DIR)+'/outputs/epc_encoded_reduced.csv')
+epc_df_encoded = pd.read_csv(str(PROJECT_DIR) + "/outputs/epc_encoded_reduced.csv")
 
 # %%
 epc_df_encoded.shape
@@ -361,10 +370,12 @@ epc_df_encoded.shape
 drop_features = [
     "original_address",
     "MCS_AVAILABLE",
+    "Country",
     "HAS_HP_AT_SOME_POINT",
     "HP_INSTALL_DATE",
     "FIRST_HP_MENTION",
     "INSPECTION_YEAR",
+    "N_ENTRIES_BUILD_ID",
     "HP_INSTALL_YEAR",
     "FIRST_HP_MENTION_YEAR",
     "HEATING_SYSTEM",
@@ -373,6 +384,32 @@ drop_features = [
 
 epc_df_encoded.drop(columns=drop_features, inplace=True)
 
+# %%
+POSTCODE_LEVEL = "POSTCODE_SECTOR"
+POSTCODE_LEVEL = "POSTCODE_UNIT"
+all_postcode_levels = [
+    "POSTCODE_AREA",
+    "POSTCODE_DISTRICT",
+    "POSTCODE_SECTOR",
+    "POSTCODE_UNIT",
+    "POSTCODE",
+]
+other_postcodes = [
+    postcode for postcode in all_postcode_levels if postcode != POSTCODE_LEVEL
+]
+remove_cols = []
+for feat in other_postcodes:
+    remove_cols += [col for col in epc_df_encoded.columns if feat == col]
+
+for feat in ["MAIN_FUEL", "ADDRESS", "Unnamed: 0"]:
+    remove_cols += [col for col in epc_df_encoded.columns if feat in col]
+
+print(remove_cols)
+
+epc_df_encoded = epc_df_encoded.drop(columns=remove_cols)
+
+
+# %%
 numeric_features = epc_df_encoded.select_dtypes(include=np.number).columns.tolist()
 print(numeric_features)
 print(len(numeric_features))
@@ -382,15 +419,15 @@ categorical_features = [
     if (feature not in ordinal_features) and (feature not in numeric_features)
 ]
 
-# %%
-POSTCODE_LEVEL = "POSTCODE_SECTOR"
-
 categorical_features = [
     f for f in categorical_features if f not in [POSTCODE_LEVEL, "HP_INSTALLED"]
 ]
 
 print(categorical_features)
 print(len(categorical_features))
+
+# %%
+categorical_features
 
 
 # %%
@@ -416,12 +453,12 @@ def get_year_range_data(df, years):
 # prediction_years = get_year_range_data(epc_df_encoded, [2014, 2013, 2015, 2016])
 
 data_time_t = feature_engineering.filter_by_year(
-    epc_df_encoded, "BUILDING_ID", 2012, selection="latest entry", up_to=True
-)
-data_time_t_plus_one = feature_engineering.filter_by_year(
     epc_df_encoded, "BUILDING_ID", 2015, selection="latest entry", up_to=True
 )
-del epc_df_encoded
+data_time_t_plus_one = feature_engineering.filter_by_year(
+    epc_df_encoded, "BUILDING_ID", 2018, selection="latest entry", up_to=True
+)
+
 
 # %%
 num_agglomerated = (
@@ -435,6 +472,13 @@ cat_agglomerated = data_aggregation.aggreate_categorical_features(
     data_time_t, categorical_features, agglo_feature=POSTCODE_LEVEL
 )
 
+most_frequent = [col for col in cat_agglomerated.columns if "MOST_FREQUENT" in col]
+
+print(cat_agglomerated.shape)
+cat_agglomerated = feature_encoding.one_hot_encoding(
+    cat_agglomerated, most_frequent, verbose=True
+)
+print(cat_agglomerated.shape)
 cat_agglomerated.tail()
 
 
@@ -521,11 +565,6 @@ print(agglomerated_with_target.shape)
 agglomerated_with_target.head()
 
 # %%
-most_freq_features = [
-    col for col in agglomerated_with_target.columns if "MOST_FREQUENT" in col
-]
-agglomerated_with_target = agglomerated_with_target.drop(columns=most_freq_features)
-
 print(agglomerated_with_target.shape)
 agglomerated_with_target = agglomerated_with_target[
     ~agglomerated_with_target[POSTCODE_LEVEL].isin(samples_to_discard)
@@ -533,10 +572,17 @@ agglomerated_with_target = agglomerated_with_target[
 print(agglomerated_with_target.shape)
 
 # %%
+for x in agglomerated_with_target.columns:
+    print(x)
+
+# %%
+agglomerated_with_target.head()
+
+# %%
 target_variables = ["GROWTH", "HP_COVERAGE_FUTURE"]
 TARGET_VARIABLE = target_variables[1]
 
-X = agglomerated_with_target
+X = agglomerated_with_target  # int(X.shape[0]/2)]
 y = np.array(X[TARGET_VARIABLE])
 
 for col in target_variables + [POSTCODE_LEVEL]:
@@ -547,6 +593,15 @@ print(X.shape)
 X = X.dropna(axis="columns", how="all")
 print(X.shape)
 # X.fillna(X.mean(), inplace=True)
+
+# %%
+del epc_df_encoded
+
+# %%
+feature_names = X.columns
+
+# %%
+feature_names
 
 # %%
 from sklearn.pipeline import Pipeline
@@ -561,8 +616,8 @@ prepr_pipeline = Pipeline(
 )
 
 # %%
-X = prepr_pipeline.fit_transform(X)
-print(X.shape)
+X_prep = prepr_pipeline.fit_transform(X)
+print(X_prep.shape)
 
 # %%
 # Reduce dimensionality to level of 90% explained variance ratio
@@ -577,13 +632,14 @@ print(X.shape)
 # %%
 # Split into train and test sets
 X_train, X_test, y_train, y_test = train_test_split(
-    X,
+    X_prep,
     y,
     test_size=0.1,
     random_state=42,  # stratify=y
 )
 
 # %%
+FIGPATH = str(PROJECT_DIR) + "/outputs/figures/"
 
 print("Number of samples:", X.shape[0])
 print("Number of features:", X.shape[1])
@@ -596,7 +652,7 @@ from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import GridSearchCV
 
 model_dict = {
-    "SVM Regressor": svm.SVR(),
+    #  "SVM Regressor": svm.SVR(),
     "Linear Regression": LinearRegression(),
     "Decision Tree Regressor": DecisionTreeRegressor(),
     "Random Forest Regressor": RandomForestRegressor(),
@@ -605,12 +661,18 @@ cv = 3
 interval = 5
 
 best_params = {
-    "SVM Regressor": {"C": 10, "gamma": 0.01, "kernel": "rbf"},
+    "SVM Regressor": {"C": 5, "gamma": 0.01, "kernel": "rbf"},
     "Linear Regression": {},
-    "Decision Tree Regressor": {},  # {'max_depth': 11, 'max_features': None,
-    # 'max_leaf_nodes': 10, 'min_samples_leaf': 5,
-    # 'min_weight_fraction_leaf': 0.05, 'splitter': 'random'},
-    "Random Forest Regressor": {"max_features": 12, "n_estimators": 30},
+    "Decision Tree Regressor": {
+        "max_depth": 5,
+        "max_features": None,
+        "max_leaf_nodes": 10,
+        "min_samples_leaf": 7,
+        "min_weight_fraction_leaf": 0.05,
+        "splitter": "random",
+    },
+    # "Random Forest Regressor": {"max_features": 12, "n_estimators": 30},
+    "Random Forest Regressor": {"max_features": 15, "n_estimators": 50},
 }
 
 
@@ -685,6 +747,24 @@ def train_and_evaluate(model_name):
             rsme_scores = np.sqrt(-scores)
             display_scores(rsme_scores)
 
+            errors = abs(sols - preds)
+            plt.scatter(errors, sols)
+            plt.title(
+                "Error: {} using {} on {}".format(variable_name, model_name, set_name)
+            )
+            plt.xlabel("Error")
+            plt.ylabel("Ground Truth")
+            plt.show()
+
+            if model_name == "Decision Tree Regressor" and set_name == "Training Set":
+                print("yay")
+                from sklearn import tree
+
+                tree.plot_tree(model, feature_names=feature_names, label="all")
+                plt.tight_layout()
+                plt.savefig(FIGPATH + "decision_tree.png", dpi=300, bbox_inches="tight")
+                plt.show()
+
 
 for model in model_dict.keys():
     train_and_evaluate(model)
@@ -728,11 +808,15 @@ def parameter_screening(model_name, X, y):
     print(grid_search.best_params_)
 
 
-for model in model_dict.keys():
-    if model not in ["Linear Regression"]:
-        print(model)
-        parameter_screening(model, X_train, y_train)
-        print()
+para_screening = True
+
+if para_screening:
+
+    for model in model_dict.keys():
+        if model not in ["Linear Regression", "Decision Tree Regressor"]:
+            print(model)
+            parameter_screening(model, X_train, y_train)
+            print()
 
 # %%
 para_grid = {
