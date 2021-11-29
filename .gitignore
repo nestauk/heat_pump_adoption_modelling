@@ -136,3 +136,4 @@ Outputs/figures/*
 
 # NPM
 node_modules/
+.Rproj.user

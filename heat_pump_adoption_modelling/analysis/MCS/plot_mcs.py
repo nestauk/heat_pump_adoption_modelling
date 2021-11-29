@@ -105,7 +105,9 @@ def scop_trend_plot(df):
     df = df.loc[df.flow_temp.isin(flow_temps) & ~df.scop.isna() & (df.year > 2015)]
 
     # Group and process data
-    plotting_df = df.groupby(["year", "flow_temp"])["scop"].agg("mean").unstack()
+    plotting_df = (
+        df.groupby(["year", "flow_temp"])["scop"].agg(["mean", "count"]).unstack()
+    )
 
     fig, ax = plt.subplots()
 
@@ -114,17 +116,31 @@ def scop_trend_plot(df):
     for i in range(0, 5):
         ax.plot(
             plotting_df.index,
-            plotting_df[flow_temps[i]],
+            plotting_df["mean"][flow_temps[i]],
             label=flow_temps[i],
             c=colours[i],
         )
+        for year in plotting_df.index:
+            ax.annotate(
+                text=plotting_df["count"].loc[year, flow_temps[i]],
+                xy=(year - 0.23, plotting_df["mean"].loc[year, flow_temps[i]] + 0.02),
+                c=colours[i],
+            )
 
     ax.set_ylim(3, 4.4)
     ax.set_xlabel("Year")
     ax.set_ylabel("Mean SCOP")
     ax.set_title("Mean SCOP of installed heat pumps over time")
     ax.grid(color="0.8")
-    ax.legend(title="Flow temp. ($\degree$C)")
+    # ax.legend(title="Flow temp. ($\degree$C)")
+
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+
+    # Put a legend to the right of the current axis
+    ax.legend(
+        title="Flow temp. ($\degree$C)", loc="center left", bbox_to_anchor=(1, 0.5)
+    )
 
     plt.savefig("outputs/figures/scop.png")
 
