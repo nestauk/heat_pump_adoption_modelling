@@ -129,7 +129,7 @@ def plot_confusion_matrix(solutions, predictions, label_set=None, title=""):
     if len(label_set) > 5:
         plt.figure(figsize=(10, 10))
     else:
-        plt.figure(figsize=(5, 5))
+        plt.figure(figsize=(2, 2))
 
     # Plot  confusion matrix with blue color map
     plt.imshow(cm, interpolation="none", cmap="Blues")
@@ -152,7 +152,7 @@ def plot_confusion_matrix(solutions, predictions, label_set=None, title=""):
     plt.gca().set_yticklabels(label_set)
     plt.gca().invert_yaxis()
 
-    plt.savefig(FIGPATH / title, format="png", dpi=500)
+    plt.savefig(FIGPATH / title, format="png", dpi=500, bbox_inches="tight")
 
     # Show plot
     plt.show()
@@ -200,6 +200,7 @@ def plot_feature_coefficients(classifier, feature_names, label_set, title):
         FIGSIZE = (80, 30)
         ROTATION = 35
         RIGHT = 0.81
+
     else:
         FIGSIZE = (40, 12)
         ROTATION = 45
