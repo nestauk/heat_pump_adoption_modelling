@@ -218,6 +218,36 @@ plt.show()
 # ## Future Heat Pump Status
 
 # %%
+FIGPATH = str(PROJECT_DIR) + "/outputs/figures/"
+
+
+# %%
+list(encoded_features.columns)
+
+# %%
+encoded_features = pd.read_csv(str(PROJECT_DIR) + "/outputs/epc_df_5000000_encoded.csv")
+print(encoded_features.columns)
+encoded_features = encoded_features.drop(
+    columns=[
+        "POSTCODE_AREA",
+        "POSTCODE_DISTRICT",
+        "POSTCODE_SECTOR",
+        "POSTCODE_UNIT",
+        "HP_INSTALL_DATE",
+        "FIRST_HP_MENTION",
+        "INSPECTION_YEAR",
+        "HP_INSTALL_YEAR",
+        "FIRST_HP_MENTION_YEAR",
+        "MCS_AVAILABLE: True",
+        "MCS_AVAILABLE: False",
+        "HAS_HP_AT_SOME_POINT: True",
+        "HAS_HP_AT_SOME_POINT: False",
+        "Unnamed: 0.1",
+        "Unnamed: 0",
+    ]
+)
+
+# %%
 current_hp_df = feature_engineering.filter_by_year(
     encoded_features, "BUILDING_ID", None, selection="latest entry"
 )
@@ -344,7 +374,7 @@ if balanced_set:
 
 y = X[target_variable]
 
-for feat in ["HP_INSTALLED", "HP_ADDED"]:
+for feat in ["HP_INSTALLED", "HP_ADDED", "N_ENTRIES_BUILD_ID"]:
     if feat in X.columns:
         del X[feat]
 
@@ -367,7 +397,109 @@ def value_counts(feature):
 
 
 # %%
+physical_features = [
+    "TOTAL_FLOOR_AREA",
+    "CURRENT_ENERGY_EFFICIENCY",
+    "CURRENT_ENERGY_RATING",
+    "POTENTIAL_ENERGY_RATING",
+    "WALLS_ENERGY_EFF",
+    "ROOF_ENERGY_EFF",
+    "FLOOR_ENERGY_EFF",
+    "WINDOWS_ENERGY_EFF",
+    "MAINHEAT_ENERGY_EFF",
+    "MAINHEATC_ENERGY_EFF",
+    "HOT_WATER_ENERGY_EFF",
+    "LIGHTING_ENERGY_EFF",
+    "CO2_EMISSIONS_CURRENT",
+    "HEATING_COST_CURRENT",
+    "HOT_WATER_COST_CURRENT",
+    "LIGHTING_COST_CURRENT",
+    "FLOOR_HEIGHT",
+    "EXTENSION_COUNT",
+    "FLOOR_LEVEL",
+    "GLAZED_AREA",
+    "NUMBER_HABITABLE_ROOMS",
+    "MAINS_GAS_FLAG",
+    "MAIN_HEATING_CONTROLS",
+    "MULTI_GLAZE_PROPORTION",
+    "GLAZED_TYPE",
+    "PHOTO_SUPPLY",
+    "WIND_TURBINE_COUNT",
+    "CONSTRUCTION_AGE_BAND_ORIGINAL",
+    "DIFF_POT_ENERGY_RATING",
+    "MECHANICAL_VENTILATION: mechanical",
+    "MECHANICAL_VENTILATION: natural",
+    "MECHANICAL_VENTILATION: unknown",
+    "BUILT_FORM: Detached",
+    "BUILT_FORM: Enclosed End-Terrace",
+    "BUILT_FORM: Enclosed Mid-Terrace",
+    "BUILT_FORM: End-Terrace",
+    "BUILT_FORM: Mid-Terrace",
+    "BUILT_FORM: Semi-Detached",
+    "BUILT_FORM: unknown",
+    "PROPERTY_TYPE: Bungalow",
+    "PROPERTY_TYPE: Flat",
+    "PROPERTY_TYPE: House",
+    "PROPERTY_TYPE: Maisonette",
+    "PROPERTY_TYPE: Park home",
+    "HEATING_SYSTEM: boiler and radiator",
+    "HEATING_SYSTEM: boiler and underfloor",
+    "HEATING_SYSTEM: community scheme",
+    "HEATING_SYSTEM: heat pump",
+    "HEATING_SYSTEM: heater",
+    "HEATING_SYSTEM: storage heater",
+    "HEATING_SYSTEM: underfloor heating",
+    "HEATING_SYSTEM: unknown",
+    "HEATING_SYSTEM: warm air",
+    "HEATING_FUEL: LPG",
+    "HEATING_FUEL: electric",
+    "HEATING_FUEL: gas",
+    "HEATING_FUEL: oil",
+    "HEATING_FUEL: unknown",
+]
+
+social_features = [
+    "IMD Rank",
+    "IMD Decile",
+    "Income Score",
+    "Employment Score",
+    "TOTAL_FLOOR_AREA",
+    "ENTRY_YEAR_INT",
+    "INSPECTION_DATE_AS_NUM",
+    "ENERGY_TARIFF: dual",
+    "ENERGY_TARIFF: off-peak",
+    "ENERGY_TARIFF: single",
+    "ENERGY_TARIFF: standard",
+    "ENERGY_TARIFF: unknown",
+    "SOLAR_WATER_HEATING_FLAG: False",
+    "SOLAR_WATER_HEATING_FLAG: True",
+    "SOLAR_WATER_HEATING_FLAG: unknown",
+    "TENURE: owner-occupied",
+    "TENURE: rental (private)",
+    "TENURE: rental (social)",
+    "TENURE: unknown",
+    "TRANSACTION_TYPE: ECO assessment",
+    "TRANSACTION_TYPE: Stock Condition Survey",
+    "TRANSACTION_TYPE: green deal related",
+    "TRANSACTION_TYPE: marketed saled",
+    "TRANSACTION_TYPE: new dwelling",
+    "TRANSACTION_TYPE: non marketed sale",
+    "TRANSACTION_TYPE: not sale or rental",
+    "TRANSACTION_TYPE: rental",
+    "TRANSACTION_TYPE: rental (private)",
+    "TRANSACTION_TYPE: rental (social)",
+    "TRANSACTION_TYPE: unknown",
+    "COUNTRY: England",
+    "COUNTRY: Scotland",
+    "COUNTRY: Wales",
+]
+
+# %%
 X.columns
+
+# %%
+# X = X[physical_features]
+# X.shape
 
 # %% [markdown]
 # ## Scaling and Dimensionality Reduction
@@ -398,29 +530,36 @@ X_train, X_test, y_train, y_test = train_test_split(
 )
 
 # %%
+# Split into train and test sets
+X_train, X_test, y_train, y_test = train_test_split(
+    X_scaled, y, test_size=0.1, random_state=42, stratify=y
+)
 
 print("Number of samples:", X.shape[0])
 print("Number of features:", X.shape[1])
 print()
 
 best_params = {
-    "Linear Support Vector Classifier": {
+    "Linear Support Vector Classifier":  # { "alpha": 0.0001,"epsilon": 0.0001,
+    # "penalty": "l2","tol": 0.001,}
+    {
         "alpha": 0.0001,
         "epsilon": 0.0001,
-        "penalty": "l2",
-        "tol": 0.001,
+        "penalty": "elasticnet",
+        "tol": 0.0005,
+        "max_iter": 5000,
     }
 }
 
 model_dict = {
-    "Logistic Regression": LogisticRegression(random_state=42),
+    # "Logistic Regression": LogisticRegression(random_state=42),
     "Linear Support Vector Classifier": SGDClassifier(random_state=42),
 }
 
 if balanced_set:
     cv = 10
 else:
-    cv = 3
+    cv = 10
 
 
 def train_and_evaluate(model_name):
@@ -498,6 +637,8 @@ plt = utils.plot_feature_coefficients(
 )
 
 # %%
+
+# %%
 # Split into train and test sets
 X_train, X_test, y_train, y_test = train_test_split(
     X_scaled, y, test_size=0.1, random_state=42, stratify=y
@@ -505,6 +646,21 @@ X_train, X_test, y_train, y_test = train_test_split(
 
 model = SGDClassifier(random_state=42)
 model.fit(X_train, y_train)
+model.set_params(**best_params["Linear Support Vector Classifier"])
+
+# from sklearn.calibration import CalibratedClassifierCV
+# model = CalibratedClassifierCV(model)
+# model.fit(X, y)
+
+# new = X.copy()
+# print(X_scaled.shape)
+# print(X.shape)
+# print(model.predict_proba(X_scaled))
+# print(model.predict_proba(X_scaled)[0][0].shape)
+# new['proba 1'] = model.predict_proba(X_scaled)[0][0]
+# new['proba 2'] = model.predict_proba(X_scaled)[0][1]
+# new['predict'] = model.predict(X_scaled)
+# new['ground truth'] = y
 
 acc = cross_val_score(model, X_train, y_train, cv=cv, scoring="accuracy")
 f1 = cross_val_score(model, X_train, y_train, cv=cv, scoring="f1")
@@ -513,6 +669,8 @@ print("Accuracy:", round(acc.mean(), 2))
 print("F1 Score:", round(f1.mean(), 2))
 
 feature_names = np.array(X.columns)
+print(len(feature_names))
+print(X.shape)
 label_set = ["HP Installed"]
 
 # Get feature indices sorted by coefficient strength
@@ -522,6 +680,116 @@ sort_idx, _, _ = utils.get_sorted_coefficients(model, feature_names)
 plt = utils.plot_feature_coefficients(
     model, feature_names, label_set, static_model + ": Coefficient Contributions PCA"
 )
+
+# Sort the feature indices according coefficients (highest coefficient first)
+sort_idx = np.argsort(-abs(model.coef_).max(axis=0))
+
+
+def plot_coefficients(X, classifier, feature_names, top_features=40):
+
+    import matplotlib.pyplot as plt
+
+    if classifier.__class__.__name__ == "SVC":
+        coef = classifier.coef_
+        coef2 = coef.toarray().ravel() * X.std(axis=0)
+        coef1 = coef2[: len(feature_names)]
+    else:
+        coef2 = classifier.coef_.ravel() * X.std(axis=0)
+        coef1 = coef2[: len(feature_names)]
+
+    top_positive_coefficients = np.argsort(coef1)[-top_features:]
+    top_negative_coefficients = np.argsort(coef1)[:top_features]
+    top_coefficients = np.hstack([top_negative_coefficients, top_positive_coefficients])
+    # create plot
+    plt.figure(figsize=(15, 5))
+    colors = ["red" if c < 0 else "blue" for c in coef1[top_coefficients]]
+    plt.bar(
+        np.arange(2 * top_features),
+        coef1[top_coefficients],
+        color=colors,
+        align="center",
+    )
+    feature_names = np.array(feature_names)
+    plt.xticks(
+        np.arange(0, 2 * top_features),
+        feature_names[top_coefficients],
+        rotation=45,
+        ha="right",
+    )
+    title = "Future HP Status: Coefficient Importance"
+    plt.title(title)
+    plt.savefig(FIGPATH + title + ".png", dpi=200, bbox_inches="tight")
+
+    plt.show()
+
+
+plot_coefficients(X_train, model, feature_names, 10)
+
+
+# %%
+new.head()
+
+# %%
+# sample = new.loc[(new['predict'] == False) & (new['ground truth'] ==False)].head()
+
+# %%
+sample.head()
+
+# %%
+# new.loc[(new['predict'] != new['ground truth']) & (new["HEATING_FUEL: gas"] == 1.0)].shape
+
+# %%
+# new.loc[(new['predict'] != new['ground truth']) & (new["HEATING_FUEL: oil"] == 1.0)].shape
+
+# %%
+# new.loc[(new['predict'] != new['ground truth']) & (new["HEATING_FUEL: electric"] == 1.0)].shape
+
+# %%
+sample[["BUILDING_ID", "TENURE: rental (private)", "proba 1"]].head(20)
+
+# %%
+id = 1905580105094813
+sample.loc[sample["BUILDING_ID"] == id].head()
+
+# %%
+sample_x = sample.loc[sample["BUILDING_ID"] == id]
+
+
+@interact(feature=sample_x.columns)
+def value_counts(feature):
+    print(feature)
+    print(sample_x[feature].value_counts(dropna=False))
+
+    print(sample_x[feature].unique())
+    print(sample_x[feature].max())
+    print(sample_x[feature].min())
+
+
+# %%
+@interact(feature=sample.columns)
+def value_counts(feature):
+    print(feature)
+    print(sample[feature].value_counts(dropna=False))
+
+    print(sample[feature].unique())
+    print(sample[feature].max())
+    print(sample[feature].min())
+
+
+# %%
+sample_x = sample.loc[sample["BUILDING_ID"] == 1527339511702423]
+for col in sample_x.columns:
+    print(col, sample_x[col])
+
+# %%
+
+# %%
+
+print(feature_names.shape)
+# print(feature_names)
+print(X.shape)
+pd.DataFrame(X[:10], columns=feature_names).head()
+
 
 # %%
 # Get sorted coefficients and feature names
@@ -558,5 +826,20 @@ grid_search.fit(X_train, y_train)
 print(grid_search.best_params_)
 
 # %%
+X_train, X_test, y_train, y_test = train_test_split(
+    X_scaled, y, test_size=0.1, random_state=42, stratify=y
+)
+param_grid = {
+    "penalty": ["l2", "l1", "elasticnet"],
+    "alpha": [0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1],
+    "epsilon": [0.0001, 0.0005, 0.001, 0.005, 0.01, 0.1],
+    "tol": [0.00001, 0.00005, 0.0001, 0.0005, 0.001, 0.01, 0.1],
+}
+
+model = SGDClassifier(random_state=42)
+
+grid_search = GridSearchCV(model, param_grid, cv=5, scoring="f1")
+grid_search.fit(X_train, y_train)
+print(grid_search.best_params_)
 
 # %%
