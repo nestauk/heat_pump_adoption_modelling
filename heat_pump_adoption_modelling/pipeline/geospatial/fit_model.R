@@ -22,7 +22,7 @@ relevant_cols <- c(
   "FINAL_GLAZ_TYPE", "FINAL_FLOOR_INS", "FINAL_LOW_ENERGY_LIGHTING",
   "FINAL_WIND_FLAG", "FINAL_HEATING_SYSTEM")
 
-postcode_areas <- c("EX")
+postcode_areas <- c("NP", "CF")
 
 # utility functions
 reformat_postcode <- function(postcode) {
