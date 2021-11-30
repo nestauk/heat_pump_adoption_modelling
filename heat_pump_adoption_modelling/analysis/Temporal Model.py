@@ -361,28 +361,31 @@ epc_df_encoded.head()
 
 # %%
 # epc_df_encoded.to_csv(str(PROJECT_DIR)+'/outputs/epc_encoded_reduced.csv')
-epc_df_encoded = pd.read_csv(str(PROJECT_DIR) + "/outputs/epc_encoded_reduced.csv")
+epc_df_encoded = pd.read_csv(
+    str(PROJECT_DIR) + "/outputs/epc_df_5000000_preprocessed.csv"
+)
 
 # %%
 epc_df_encoded.shape
 
 # %%
 drop_features = [
-    "original_address",
     "MCS_AVAILABLE",
-    "Country",
+    "Unnamed: 0",
+    "Unnamed: 0.1",
     "HAS_HP_AT_SOME_POINT",
     "HP_INSTALL_DATE",
     "FIRST_HP_MENTION",
     "INSPECTION_YEAR",
     "N_ENTRIES_BUILD_ID",
     "HP_INSTALL_YEAR",
-    "FIRST_HP_MENTION_YEAR",
-    "HEATING_SYSTEM",
-    "HEATING_FUEL",
+    "FIRST_HP_MENTION_YEAR",  #'HEATING_SYSTEM', 'HEATING_FUEL
 ]
 
 epc_df_encoded.drop(columns=drop_features, inplace=True)
+
+# %%
+epc_df_encoded.columns
 
 # %%
 POSTCODE_LEVEL = "POSTCODE_SECTOR"
@@ -400,9 +403,6 @@ other_postcodes = [
 remove_cols = []
 for feat in other_postcodes:
     remove_cols += [col for col in epc_df_encoded.columns if feat == col]
-
-for feat in ["MAIN_FUEL", "ADDRESS", "Unnamed: 0"]:
-    remove_cols += [col for col in epc_df_encoded.columns if feat in col]
 
 print(remove_cols)
 
@@ -452,13 +452,22 @@ def get_year_range_data(df, years):
 # training_years = get_year_range_data(epc_df_encoded, [2008, 2009, 2010, 2011, 2012])
 # prediction_years = get_year_range_data(epc_df_encoded, [2014, 2013, 2015, 2016])
 
+t = 2015
+t_plus_one = 2020
+
 data_time_t = feature_engineering.filter_by_year(
-    epc_df_encoded, "BUILDING_ID", 2015, selection="latest entry", up_to=True
+    epc_df_encoded, "BUILDING_ID", t, selection="latest entry", up_to=True
 )
 data_time_t_plus_one = feature_engineering.filter_by_year(
-    epc_df_encoded, "BUILDING_ID", 2018, selection="latest entry", up_to=True
+    epc_df_encoded, "BUILDING_ID", t_plus_one, selection="latest entry", up_to=True
 )
 
+
+# %%
+future = feature_engineering.filter_by_year(
+    epc_df_encoded, "BUILDING_ID", 2021, selection="latest entry", up_to=True
+)
+data_time_t = future
 
 # %%
 num_agglomerated = (
@@ -572,17 +581,24 @@ agglomerated_with_target = agglomerated_with_target[
 print(agglomerated_with_target.shape)
 
 # %%
-for x in agglomerated_with_target.columns:
-    print(x)
 
 # %%
 agglomerated_with_target.head()
 
 # %%
-target_variables = ["GROWTH", "HP_COVERAGE_FUTURE"]
-TARGET_VARIABLE = target_variables[1]
+remove_cols = [col for col in agglomerated_with_target.columns if "False" in col]
+agglomerated_with_target = agglomerated_with_target.drop(columns=remove_cols)
+print(agglomerated_with_target.columns)
 
-X = agglomerated_with_target  # int(X.shape[0]/2)]
+# %%
+for x in agglomerated_with_target.columns:
+    print(x)
+
+# %%
+target_variables = ["GROWTH", "HP_COVERAGE_FUTURE"]
+TARGET_VARIABLE = target_variables[0]
+
+X = agglomerated_with_target.copy()  # int(X.shape[0]/2)]
 y = np.array(X[TARGET_VARIABLE])
 
 for col in target_variables + [POSTCODE_LEVEL]:
@@ -593,9 +609,6 @@ print(X.shape)
 X = X.dropna(axis="columns", how="all")
 print(X.shape)
 # X.fillna(X.mean(), inplace=True)
-
-# %%
-del epc_df_encoded
 
 # %%
 feature_names = X.columns
@@ -611,7 +624,7 @@ prepr_pipeline = Pipeline(
     [
         ("imputer", SimpleImputer(missing_values=np.nan, strategy="median")),
         ("min_max_scaler", MinMaxScaler()),
-        ("pca", PCA(n_components=0.9, random_state=42)),
+        ("pca", PCA(n_components=27, random_state=42)),
     ]
 )
 
@@ -632,11 +645,14 @@ print(X_prep.shape)
 # %%
 # Split into train and test sets
 X_train, X_test, y_train, y_test = train_test_split(
-    X_prep,
-    y,
-    test_size=0.1,
-    random_state=42,  # stratify=y
+    X_prep, y, test_size=0.1, random_state=42
 )
+
+# %%
+train_postcode = X_train["POSTCODE_UNIT"]
+
+# %%
+list(train_postcode)
 
 # %%
 FIGPATH = str(PROJECT_DIR) + "/outputs/figures/"
@@ -653,26 +669,29 @@ from sklearn.model_selection import GridSearchCV
 
 model_dict = {
     #  "SVM Regressor": svm.SVR(),
-    "Linear Regression": LinearRegression(),
-    "Decision Tree Regressor": DecisionTreeRegressor(),
     "Random Forest Regressor": RandomForestRegressor(),
+    #  "Linear Regression": LinearRegression(),
+    #   "Decision Tree Regressor": DecisionTreeRegressor(),
 }
-cv = 3
+cv = 1
 interval = 5
 
 best_params = {
-    "SVM Regressor": {"C": 5, "gamma": 0.01, "kernel": "rbf"},
+    # "SVM Regressor": {"C": 5, "gamma": 0.01, "kernel": "rbf"},
     "Linear Regression": {},
-    "Decision Tree Regressor": {
-        "max_depth": 5,
-        "max_features": None,
-        "max_leaf_nodes": 10,
-        "min_samples_leaf": 7,
+    "Decision Tree Regressor":
+    # {'max_depth': 5, 'max_features': None,'max_leaf_nodes': 10, 'min_samples_leaf': 7,'min_weight_fraction_leaf': 0.05, 'splitter': 'random'},
+    {
+        "max_depth": 15,
+        "max_features": "auto",
+        "max_leaf_nodes": 15,
+        "min_samples_leaf": 0.05,
         "min_weight_fraction_leaf": 0.05,
-        "splitter": "random",
+        "splitter": "best",
     },
-    # "Random Forest Regressor": {"max_features": 12, "n_estimators": 30},
-    "Random Forest Regressor": {"max_features": 15, "n_estimators": 50},
+    "Random Forest Regressor":  # {"max_features": 12, "n_estimators": 10, "min_samples_leaf" : 0.05},
+    # {'bootstrap': False, 'max_features': 10, 'min_samples_leaf': 0.05,  'n_estimators': 20}
+    {"max_features": 12, "n_estimators": 30},
 }
 
 
@@ -685,8 +704,10 @@ def display_scores(scores):
 def train_and_evaluate(model_name):
 
     model = model_dict[model_name]
-    model.set_params(**best_params[model_name])
+    # model.set_params(**best_params[model_name])
     model.fit(X_train, y_train)
+
+    return model
 
     pred_train = model.predict(X_train)
     pred_test = model.predict(X_test)
@@ -741,23 +762,20 @@ def train_and_evaluate(model_name):
             plt.ylabel("Ground Truth")
             plt.show()
 
-            scores = cross_val_score(
-                model, X_train, y_train, cv=cv, scoring="neg_mean_squared_error"
-            )
-            rsme_scores = np.sqrt(-scores)
-            display_scores(rsme_scores)
+            # scores = cross_val_score(
+            #     model, X_train, y_train, cv=cv, scoring="neg_mean_squared_error"
+            # )
+            # rsme_scores = np.sqrt(-scores)
+            # display_scores(rsme_scores)
 
-            errors = abs(sols - preds)
-            plt.scatter(errors, sols)
-            plt.title(
-                "Error: {} using {} on {}".format(variable_name, model_name, set_name)
-            )
-            plt.xlabel("Error")
-            plt.ylabel("Ground Truth")
-            plt.show()
+            # errors = abs(sols-preds)
+            # plt.scatter(errors, sols)
+            # plt.title("Error: {} using {} on {}".format(variable_name, model_name, set_name))
+            # plt.xlabel("Error")
+            # plt.ylabel("Ground Truth")
+            # plt.show()
 
             if model_name == "Decision Tree Regressor" and set_name == "Training Set":
-                print("yay")
                 from sklearn import tree
 
                 tree.plot_tree(model, feature_names=feature_names, label="all")
@@ -767,19 +785,94 @@ def train_and_evaluate(model_name):
 
 
 for model in model_dict.keys():
-    train_and_evaluate(model)
+    model = train_and_evaluate(model)
+
+# %%
+# perc_predictions =  model.predict(X_prep)
+# np.save('perc_preds.npy', perc_predictions)
+
+# %%
+growth_predictions = model.predict(X_prep)
+np.save("growth_preds.npy", growth_predictions)
+
+# %%
+future_growth = model.predict(X_prep)
+
+
+# %%
+target_var_df["GROWTH"].mean() * 100
+
+# %%
+future_growth.mean() * 100
+
+# %%
+agglomerated_with_target["coverage prediction"] = perc_predictions
+
+# %%
+full_set = agglomerated_with_target.copy()
+full_set["growth prediction"] = growth_predictions
+
+# %%
+full_set.to_csv(str(PROJECT_DIR) + "/outputs/data_and_predictions_x.csv")
+
+# %%
+full_set["train_set"] = full_set["POSTCODE_UNIT"].isin(list(train_postcode))
+
+# %%
+full_set.head()
+
+# %%
+full_set = pd.merge(
+    full_set,
+    target_var_df[["# Properties", POSTCODE_LEVEL]],
+    on=POSTCODE_LEVEL,
+)
+
+# %%
+full_set.columns
+
+# %%
+full_set.head()
+
+# %%
+growth_predictions
+
+# %%
+full_set["growth prediction"] = growth_predictions
+
+# %%
+
+# %%
+errors = abs(sols - preds)
+
+# %%
+agglomerated_with_target.columns
+
+# %%
+agglomerated_with_target["GROWTH"].head()
+
+# %%
+agglomerated_with_target.shape
+
+# %%
+agglomerated_with_target["growth predictions"] = growth_predictions
+
+# %%
+agglomerated_with_target.head()
+
+# %%
+agglomerated_with_target.to_csv(str(PROJECT_DIR) + "/outputs/X.csv")
 
 # %%
 from sklearn.model_selection import GridSearchCV
 
 param_grid_dict = {
-    "Random Forest Regressor": [
-        {
-            "n_estimators": [2, 5, 10, 22, 25, 30, 35, 40, 45, 50],
-            "max_features": [1, 2, 4, 6, 8, 10, 12, 14, 15, 16, 18, 20],
-        },
-        # {'bootstrap': [False], 'n_estimators':[3,10], 'max_features':[2,3,4]}
-    ],
+    "Random Forest Regressor": {
+        "n_estimators": [10, 15, 20, 25],
+        "max_features": [5, 10, 15, 20, 25, "auto", "sqrt"],
+        "min_samples_leaf": [0.05],
+        "bootstrap": [False],
+    },  # {'bootstrap': False, 'max_features': 10, 'min_samples_leaf': 0.05, 'n_estimators': 20}
     "SVM Regressor": {
         "gamma": [0.0001, 0.001, 0.01, 0.1, 1.0, 10],
         "kernel": ["rbf"],
@@ -787,11 +880,13 @@ param_grid_dict = {
     },
     "Decision Tree Regressor": {
         "splitter": ["best", "random"],
-        "max_depth": [1, 3, 5, 7, 9, 11, 12],
-        "min_samples_leaf": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-        "min_weight_fraction_leaf": [0.25, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5],
+        "max_depth": [1, 5, 10, 15],
+        "min_samples_leaf": [0.05],
+        "min_weight_fraction_leaf": [0.05, 0.1, 0.3, 0.5],
         "max_features": ["auto", "log2", "sqrt", None],
-        "max_leaf_nodes": [None, 2, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+        "max_leaf_nodes": [None, 5, 10, 15, 20, 30, 50],
+        # {'max_depth': 15, 'max_features': 'auto', 'max_leaf_nodes': 15,
+        #'min_samples_leaf': 0.05, 'min_weight_fraction_leaf': 0.05, 'splitter': 'best'}
     },
 }
 
@@ -802,7 +897,7 @@ def parameter_screening(model_name, X, y):
     param_grid = param_grid_dict[model_name]
 
     grid_search = GridSearchCV(
-        model, param_grid, cv=5, scoring="neg_mean_squared_error"
+        model, param_grid, cv=3, scoring="neg_mean_squared_error"
     )
     grid_search.fit(X, y)
     print(grid_search.best_params_)
@@ -814,6 +909,18 @@ if para_screening:
 
     for model in model_dict.keys():
         if model not in ["Linear Regression", "Decision Tree Regressor"]:
+            print(model)
+            parameter_screening(model, X_train, y_train)
+            print()
+
+# %%
+
+para_screening = True
+
+if para_screening:
+
+    for model in model_dict.keys():
+        if model in ["Decision Tree Regressor"]:
             print(model)
             parameter_screening(model, X_train, y_train)
             print()
