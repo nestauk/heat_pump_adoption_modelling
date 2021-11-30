@@ -260,7 +260,7 @@ Most relevant features for predicting future HP installation:
 - [ ] Predict until 2025
 - [ ] Plot decision tree
 
-## Some notes (will be deleted):
+## Some notes to integrate somewhere (will be deleted later):
 
 - How to deal with NaN? Set to 0, -1, 999? Drop?
 - Optimise balance vs. representativness
@@ -292,3 +292,93 @@ Predict up to 2025
 Different windows: time t+1 = 1-2-3 years
 What information is missing?
 Broader limitations of approach?
+
+Example Selection
+
+---
+
+sample = new.loc[(new['predict'] == False) & (new['ground truth'] == True)]
+
+ID = 2952861554346758
+
+- higher IMD
+- higher IMD Decile
+- 80 square metere
+- energy efficiency between 50-60
+- C D rank
+- around 10kg emissions
+- off gas
+- 1950-1966"
+- 2009-2013
+- mechnical natural
+- owner-occupied
+- marketet sale
+- detached
+- house
+- boiler and radiator
+
+proba; 0.899918
+
+- semi-detached house with gas boiler and radiator
+- owner occupied
+- - 1950-1966"
+- C rank
+- 91 square metre
+- Decile 6
+- 5 rooms
+- relatively high heating costs
+
+False
+False
+
+- Low IMD, Flat, Terraced, social, pre 1950-1966", C rated, green deal recent update
+  or: Middle IMD, semi-detached House, private (rental), new, C/B rated
+  especially easy in cases where it reached its max
+
+---
+
+Model Name: Random Forest Regressor
+
+---
+
+---
+
+## Training Set
+
+Category Accuracy with 5% steps : 0.97
+Scores: [0.04735578 0.04733392 0.04765571]
+Mean: 0.04744847331770922
+Standard deviation: 0.00014681238577870959
+
+---
+
+## Validation Set
+
+Category Accuracy with 5% steps : 0.94
+Scores: [0.04734595 0.04743171 0.04775259]
+Mean: 0.04751008271080479
+Standard deviation: 0.00017501594035653913
+
+GROWTH
+
+---
+
+Model Name: Random Forest Regressor
+
+---
+
+---
+
+## Training Set
+
+Category Accuracy with 5% steps : 0.99
+
+Scores: [0.03115394 0.03148233 0.03118248]
+Mean: 0.031272919897221946
+Standard deviation: 0.00014853571549387916
+
+## Validation Set
+
+Category Accuracy with 5% steps : 0.98
+
+2.36% growth for 2025
