@@ -1,5 +1,6 @@
 # File: heat_pump_adoption_modelling/analysis/MCS/plot_mcs.py
 """Produce plots relating to heat pump costs/capacities:
+- Counts by manufacturer
 - Median costs by year and tech type
 - Mean ASHP SCOP by year and flow temp
 - Costs by ASHP capacity
@@ -197,6 +198,54 @@ def generate_archetype_dict(df):
 
 
 #### PLOTS
+
+
+def plot_manufacturer_bar(df):
+    """Plot the top 10 counts of installed heat pumps by manufacturer.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Dataframe containing "manufacturer" variable.
+
+    Return
+    ----------
+        No objects returned, but figure is saved as manufacturer_bar.png.
+
+    """
+    manufacturer_data = (
+        df["manufacturer"].value_counts().sort_values(ascending=False).head(10)
+    )
+
+    manufacturer_dict = {
+        "Mitsubishi": "Mitsubishi",
+        "Daikin Europe N. V.": "Daikin",
+        "NIBE AB": "NIBE",
+        "Vaillant Group UK Ltd": "Vaillant",
+        "LG Electronics Inc.": "LG",
+        "Samsung Electronics": "Samsung",
+        "Grant Engineering (UK) Ltd": "Grant",
+        "Panasonic Marketing Europe GmbH t/a Panasonic Appliances Air-Conditioning Europe": "Panasonic",
+        "Stiebel Eltron AG": "Stiebel Eltron",
+        "Kensa Heat Pumps": "Kensa",
+    }
+
+    manufacturer_data.index = [
+        manufacturer_dict[man] for man in manufacturer_data.index
+    ]
+
+    fig, ax = plt.subplots()
+
+    ax.barh(manufacturer_data.index[::-1], manufacturer_data[::-1], zorder=5)
+
+    ax.set_title("Top 10 manufacturers of MCS-certified installed heat pumps")
+    ax.set_xlabel("Number of heat pumps")
+    ax.set_ylabel("Manufacturer")
+    ax.grid(axis="x", color="0.8", zorder=0)
+
+    plt.tight_layout()
+
+    plt.savefig(PROJECT_DIR / "outputs/figures/manufacturer_bar.png")
 
 
 def plot_median_costs(df):
@@ -487,6 +536,7 @@ def main(file_path=PROJECT_DIR / "outputs/mcs_epc.csv"):
     print("Loading data...")
     data = plottable_data(file_path=file_path)
     print("Plotting...")
+    plot_manufacturer_bar(data)
     plot_median_costs(data)
     scop_trend_plot(data)
     ashp_capacity_cost_boxplot(data)
