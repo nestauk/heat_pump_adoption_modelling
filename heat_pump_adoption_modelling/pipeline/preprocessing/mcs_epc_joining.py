@@ -161,6 +161,7 @@ def prepare_epcs(epcs):
     epcs : pandas.Dataframe
         Dataframe containing EPC records with added fields."""
 
+    # Keep original EPC address
     epcs["original_address"] = epcs["ADDRESS1"] + epcs["ADDRESS2"] + epcs["POSTCODE"]
 
     # Remove spaces, uppercase and strip whitespace from
@@ -283,8 +284,6 @@ def join_mcs_epc_data(
     if epcs is None:
         print("Preparing EPC data...")
         fields_of_interest = address_fields + characteristic_fields
-        #  fields_of_interest =
-
         epcs = load_preprocessed_epc_data(
             version="preprocessed", usecols=fields_of_interest, low_memory=True
         )
@@ -322,8 +321,6 @@ def join_mcs_epc_data(
         )
 
     print("Joining the data...")
-
-    print(epcs.columns)
     merged = (
         dhps.reset_index()
         # Join MCS records to the index-matching df on MCS index
@@ -350,8 +347,6 @@ def join_mcs_epc_data(
         merged = merged.drop(columns="standardised_address_y")
     else:
         merged = merged.rename(columns={"standardised_address_y": "epc_address"})
-
-    print(merged.columns)
 
     if save:
         merged.to_csv(str(PROJECT_DIR) + merged_path)
