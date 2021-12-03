@@ -68,7 +68,7 @@ version = "preprocessed"  # _dedupl"
 
 # Load all available columns
 epc_df = epc_data.load_preprocessed_epc_data(
-    version=version, nrows=5000000, usecols=None
+    version=version, nrows=500000, usecols=None
 )
 
 
