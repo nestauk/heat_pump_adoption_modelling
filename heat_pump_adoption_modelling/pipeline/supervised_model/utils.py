@@ -129,7 +129,7 @@ def plot_confusion_matrix(solutions, predictions, label_set=None, title=""):
     if len(label_set) > 5:
         plt.figure(figsize=(10, 10))
     else:
-        plt.figure(figsize=(2, 2))
+        plt.figure(figsize=(3, 3))
 
     # Plot  confusion matrix with blue color map
     plt.imshow(cm, interpolation="none", cmap="Blues")
