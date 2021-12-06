@@ -162,7 +162,9 @@ def prepare_epcs(epcs):
         Dataframe containing EPC records with added fields."""
 
     # Keep original EPC address
-    epcs["original_address"] = epcs["ADDRESS1"] + epcs["ADDRESS2"] + epcs["POSTCODE"]
+    epcs["original_epc_address"] = (
+        epcs["ADDRESS1"] + epcs["ADDRESS2"] + epcs["POSTCODE"]
+    )
 
     # Remove spaces, uppercase and strip whitespace from
     # postcodes in order to exact match on this field
