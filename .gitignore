@@ -101,6 +101,7 @@ target/
 .ipynb_checkpoints/
 
 # exclude /inputs and /outputs/data except top-level markdown
+/outputs/*
 /inputs/*
 !/inputs/*.md
 /outputs/data/*
