@@ -296,6 +296,8 @@ def feature_encoding_pipeline(
                 f for f in categorical_features if f not in target_variables
             ]
 
+        print(one_hot_features)
+
         # One-hot encoding
         df = one_hot_encoding(df, one_hot_features)
 

@@ -59,8 +59,85 @@ drop_features = [
     "Country",
     "Unnamed: 0",
     "original_address",
+    "FIRST_HP_MENTION",
+    "INSPECTION_YEAR",
+    "HP_INSTALL_YEAR",
+    "FIRST_HP_MENTION_YEAR",
+    "MCS_AVAILABLE",
+    "HAS_HP_AT_SOME_POINT",
+    "HP_TYPE",
 ]
 
+dtypes = {
+    "BUILDING_REFERENCE_NUMBER": int,
+    "ADDRESS1": str,
+    "ADDRESS2": str,
+    "POSTTOWN": str,
+    "POSTCODE": str,
+    "INSPECTION_DATE": str,
+    "LODGEMENT_DATE": str,
+    "ENERGY_CONSUMPTION_CURRENT": float,
+    "TOTAL_FLOOR_AREA": float,
+    "CURRENT_ENERGY_EFFICIENCY": int,
+    "CURRENT_ENERGY_RATING": str,
+    "POTENTIAL_ENERGY_RATING": str,
+    "CO2_EMISS_CURR_PER_FLOOR_AREA": float,
+    "WALLS_ENERGY_EFF": str,
+    "ROOF_ENERGY_EFF": str,
+    "FLOOR_ENERGY_EFF": str,
+    "WINDOWS_ENERGY_EFF": str,
+    "MAINHEAT_DESCRIPTION": str,
+    "MAINHEAT_ENERGY_EFF": str,
+    "MAINHEATC_ENERGY_EFF": str,
+    "SHEATING_ENERGY_EFF": str,
+    "HOT_WATER_ENERGY_EFF": str,
+    "LIGHTING_ENERGY_EFF": str,
+    "CO2_EMISSIONS_CURRENT": float,
+    "HEATING_COST_CURRENT": float,
+    "HEATING_COST_POTENTIAL": float,
+    "HOT_WATER_COST_CURRENT": float,
+    "HOT_WATER_COST_POTENTIAL": float,
+    "LIGHTING_COST_CURRENT": float,
+    "LIGHTING_COST_POTENTIAL": float,
+    "CONSTRUCTION_AGE_BAND": str,
+    "FLOOR_HEIGHT": float,
+    "EXTENSION_COUNT": float,
+    "FLOOR_LEVEL": float,
+    "GLAZED_AREA": float,
+    "NUMBER_HABITABLE_ROOMS": str,
+    "NUMBER_HEATED_ROOMS": str,
+    "LOCAL_AUTHORITY_LABEL": str,
+    "MAINS_GAS_FLAG": str,
+    "MAIN_FUEL": str,
+    "MAIN_HEATING_CONTROLS": float,
+    "MECHANICAL_VENTILATION": str,
+    "ENERGY_TARIFF": str,
+    "MULTI_GLAZE_PROPORTION": float,
+    "GLAZED_TYPE": str,
+    "PHOTO_SUPPLY": float,
+    "SOLAR_WATER_HEATING_FLAG": str,
+    "TENURE": str,
+    "TRANSACTION_TYPE": str,
+    "WIND_TURBINE_COUNT": float,
+    "BUILT_FORM": str,
+    "PROPERTY_TYPE": str,
+    "COUNTRY": str,
+    "CONSTRUCTION_AGE_BAND_ORIGINAL": str,
+    "ENTRY_YEAR": str,
+    "ENTRY_YEAR_INT": float,
+    "INSPECTION_DATE_AS_NUM": int,
+    "UNIQUE_ADDRESS": str,
+    "BUILDING_ID": str,
+    "N_ENTRIES": str,
+    "N_ENTRIES_BUILD_ID": str,
+    "HEATING_SYSTEM": str,
+    "HEATING_FUEL": str,
+    "HP_INSTALLED": bool,
+    "HP_TYPE": str,
+    "CURR_ENERGY_RATING_NUM": float,
+    "ENERGY_RATING_CAT": str,
+    "DIFF_POT_ENERGY_RATING": float,
+}
 
 # Load config file
 config = get_yaml_config(
@@ -299,7 +376,9 @@ def epc_sample_loading(subset="5m", preload=True):
     elif subset == "5m":
 
         if preload:
-            epc_df = pd.read_csv(SUPERVISED_MODEL_OUTPUT + "/outputs/epc_df_5m.csv")
+            epc_df = pd.read_csv(
+                SUPERVISED_MODEL_OUTPUT + "epc_df_5m.csv", dtype=dtypes
+            )
         else:
 
             epc_df = epc_data.load_preprocessed_epc_data(
@@ -328,9 +407,11 @@ def data_preprocessing(epc_df, encode_features=True, verbose=True):
 
     epc_df = add_mcs_install_dates(epc_df)
     epc_df = data_aggregation.get_postcode_levels(epc_df)
-    epc_df.to_csv(SUPERVISED_MODEL_OUTPUT + "epc_df_preprocessed.csv")
+    # epc_df.to_csv(SUPERVISED_MODEL_OUTPUT + "epc_df_preprocessed.csv")
 
     if encode_features:
+
+        print("encoding")
 
         epc_df = feature_encoding.feature_encoding_pipeline(
             epc_df,
@@ -356,10 +437,31 @@ def data_preprocessing(epc_df, encode_features=True, verbose=True):
 
 def main():
 
-    epc_df = epc_sample_loading(subset="5m", preload=True)
-    epc_df = data_preprocessing(epc_df)
+    # epc_df = epc_sample_loading(subset="5m", preload=True)
+    # epc_df = data_preprocessing(epc_df, encode_features=True)
 
-    aggr_temp = get_aggregated_temp_data(2015, 2018, "POSTCODE_UNIT")
+    epc_df = pd.read_csv(SUPERVISED_MODEL_OUTPUT + "epc_df_preprocessed.csv")
+
+    epc_df = feature_encoding.feature_encoding_pipeline(
+        epc_df,
+        ordinal_features,
+        reduce_categories=True,
+        onehot_features="auto",
+        unaltered_features=[
+            "POSTCODE",
+            "POSTCODE_DISTRICT",
+            "POSTCODE_SECTOR",
+            "POSTCODE_UNIT",
+            "HP_INSTALLED",
+            "N_ENTRIES_BUILD_ID",
+            "POSTCODE_AREA",
+        ],
+        drop_features=drop_features,
+    )
+
+    epc_df.to_csv(SUPERVISED_MODEL_OUTPUT + "epc_df_encoded.csv")
+
+    # aggr_temp = get_aggregated_temp_data(2015, 2018, "POSTCODE_UNIT")
 
 
 if __name__ == "__main__":

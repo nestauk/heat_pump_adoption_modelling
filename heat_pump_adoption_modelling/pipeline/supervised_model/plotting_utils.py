@@ -12,7 +12,7 @@ config = get_yaml_config(
     Path(str(PROJECT_DIR) + "/heat_pump_adoption_modelling/config/base.yaml")
 )
 
-FIG_PATH = str(PROJECT_DIR) + config["SUPERVISED_MODEL_FIG_PATH"]
+FIG_PATH = Path(str(PROJECT_DIR) + config["SUPERVISED_MODEL_FIG_PATH"])
 
 
 def plot_explained_variance(dim_reduction, title):
@@ -161,6 +161,43 @@ def plot_confusion_matrix(solutions, predictions, label_set=None, title=""):
     plt.savefig(FIG_PATH / title, format="png", dpi=500, bbox_inches="tight")
 
     # Show plot
+    plt.show()
+
+
+def get_most_important_coefficients(model, feature_names, title, X, top_features=10):
+
+    import matplotlib.pyplot as plt
+
+    if model.__class__.__name__ == "SVC":
+        coef = model.coef_
+        coef2 = coef.toarray().ravel() * X.std(axis=0)
+        coef1 = coef2[: len(feature_names)]
+    else:
+        coef2 = model.coef_.ravel() * X.std(axis=0)
+        coef1 = coef2[: len(feature_names)]
+
+    top_positive_coefficients = np.argsort(coef1)[-top_features:]
+    top_negative_coefficients = np.argsort(coef1)[:top_features]
+    top_coefficients = np.hstack([top_negative_coefficients, top_positive_coefficients])
+    # create plot
+    plt.figure(figsize=(15, 5))
+    colors = ["red" if c < 0 else "blue" for c in coef1[top_coefficients]]
+    plt.bar(
+        np.arange(2 * top_features),
+        coef1[top_coefficients],
+        color=colors,
+        align="center",
+    )
+    feature_names = np.array(feature_names)
+    plt.xticks(
+        np.arange(0, 2 * top_features),
+        feature_names[top_coefficients],
+        rotation=45,
+        ha="right",
+    )
+    plt.title(title)
+    plt.savefig(FIG_PATH / (title + ".png"), dpi=200, bbox_inches="tight")
+
     plt.show()
 
 
