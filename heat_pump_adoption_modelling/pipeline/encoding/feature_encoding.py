@@ -204,6 +204,8 @@ def one_hot_encoding(df, features, verbose=True):
 
         # Create new column names
         one_hot.columns = [feat + ": " + str(cat) for cat in one_hot.columns]
+        false_columns = [col for col in one_hot.columns if col.endswith("False")]
+        one_hot.drop(columns=false_columns, inplace=True)
 
         # Join enocoded features with original df
         df = df.join(one_hot)
@@ -222,7 +224,7 @@ def feature_encoding_pipeline(
     ordinal_features,
     reduce_categories=True,
     onehot_features=None,
-    target_variables=None,
+    unaltered_features=None,
     drop_features=None,
 ):
     """Pipeline for encoding ordinal and one-hot encoding of features.
@@ -243,8 +245,8 @@ def feature_encoding_pipeline(
         If set to "auto", suitable features will be identified automatically.
         To avoid one-hot encoding, use empty list or None.
 
-    target_variables : list, str, default=None
-        Target variables will not be one-hot encoded.
+    unaltered_features : list, str, default=None
+        These variables will not be encoded.
 
     drop_features : list, default=None
         Features to discard.
@@ -282,7 +284,7 @@ def feature_encoding_pipeline(
             ]
 
             # Convert target variables into list
-            target_variables = [] if target_variables is None else target_variables
+            target_variables = [] if unaltered_features is None else unaltered_features
             target_variables = (
                 list(target_variables)
                 if isinstance(target_variables, str)
@@ -293,8 +295,6 @@ def feature_encoding_pipeline(
             one_hot_features = [
                 f for f in categorical_features if f not in target_variables
             ]
-
-            print(one_hot_features)
 
         # One-hot encoding
         df = one_hot_encoding(df, one_hot_features)

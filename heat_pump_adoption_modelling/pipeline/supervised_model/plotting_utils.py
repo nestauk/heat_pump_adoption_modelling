@@ -4,9 +4,15 @@ import numpy as np
 from sklearn.decomposition import PCA, TruncatedSVD
 import sklearn
 
-from heat_pump_adoption_modelling import PROJECT_DIR
+from heat_pump_adoption_modelling import PROJECT_DIR, get_yaml_config, Path
 
-FIGPATH = PROJECT_DIR / "outputs/figures/"
+
+# Load config file
+config = get_yaml_config(
+    Path(str(PROJECT_DIR) + "/heat_pump_adoption_modelling/config/base.yaml")
+)
+
+FIG_PATH = str(PROJECT_DIR) + config["SUPERVISED_MODEL_FIG_PATH"]
 
 
 def plot_explained_variance(dim_reduction, title):
@@ -36,7 +42,7 @@ def plot_explained_variance(dim_reduction, title):
     plt.legend(["Explained Variance Ratio", "Summed Expl. Variance Ratio"])
     plt.title("Explained Variance Ratio by Dimensions " + title)
 
-    plt.savefig(FIGPATH / title, format="png", dpi=500)
+    plt.savefig(FIG_PATH / title, format="png", dpi=500)
 
     # Save plot
     # plotting.save_fig(plt, "Explained Variance Ratio by Dimensions " + title)
@@ -152,7 +158,7 @@ def plot_confusion_matrix(solutions, predictions, label_set=None, title=""):
     plt.gca().set_yticklabels(label_set)
     plt.gca().invert_yaxis()
 
-    plt.savefig(FIGPATH / title, format="png", dpi=500, bbox_inches="tight")
+    plt.savefig(FIG_PATH / title, format="png", dpi=500, bbox_inches="tight")
 
     # Show plot
     plt.show()
@@ -282,7 +288,7 @@ def plot_feature_coefficients(classifier, feature_names, label_set, title):
     cbar.ax.tick_params(labelsize=24)
 
     # plt.title(title)
-    plt.savefig(FIGPATH / (title + ".png"), format="png", dpi=500)
+    plt.savefig(FIG_PATH / (title + ".png"), format="png", dpi=500)
 
     # Show
     plt.show()
@@ -319,3 +325,20 @@ def map_percentage_to_bin(predictions, solutions, interval=5):
     solutions_labels = np.vectorize(label_dict.get)(solutions_cats)
 
     return predictions_labels, solutions_labels, label_dict
+
+
+def scatter_plot(x, y, title, xlabel, ylabel):
+
+    plt.scatter(x, y)
+    plt.title(title)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.show()
+
+    plt.savefig(FIG_PATH / (title + ".png"), format="png", dpi=500)
+
+
+def display_scores(scores):
+    print("Scores:", scores)
+    print("Mean:", scores.mean())
+    print("Standard deviation:", scores.std())
