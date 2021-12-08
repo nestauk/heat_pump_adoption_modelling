@@ -162,8 +162,16 @@ def prepare_epcs(epcs):
         Dataframe containing EPC records with added fields."""
 
     # Keep original EPC address
-    epcs["original_epc_address"] = (
+    epcs["compressed_epc_address"] = (
         epcs["ADDRESS1"] + epcs["ADDRESS2"] + epcs["POSTCODE"]
+    )
+
+    # Remove white spaces
+    epcs["compressed_epc_address"] = (
+        epcs["compressed_epc_address"]
+        .str.strip()
+        .str.lower()
+        .replace(r"\s+", "", regex=True)
     )
 
     # Remove spaces, uppercase and strip whitespace from
