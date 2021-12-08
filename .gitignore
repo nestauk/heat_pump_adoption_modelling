@@ -114,6 +114,10 @@ target/
 /outputs/EPC_data/preprocessed_data/*
 !/outputs/EPC_data/preprocessed_data
 !/outputs/EPC_data/preprocessed_data/.gitkeep
+/outputs/supervised_model/figures/*
+!/outputs/supervised_model/figures/.gitkeep
+/outputs/supervised_model/*
+!/outputs/supervised_model/.gitkeep
 
 /outputs/mcs_epc.csv
 
