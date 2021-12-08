@@ -157,3 +157,5 @@ INFLATION_PATH: "/inputs/MCS_data/inflation.csv"
 MCS_EPC_MATCHING_PARAMETER: 0.7
 MCS_EPC_MERGED_PATH: "/outputs/mcs_epc.csv"
 MCS_EPC_MAX_TOKEN_LENGTH: 8
+
+HEAT_PUMP_COSTS_FIG_PATH: "/outputs/figures/hp_costs/"

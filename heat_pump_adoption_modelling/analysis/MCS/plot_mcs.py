@@ -14,11 +14,19 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-from heat_pump_adoption_modelling import PROJECT_DIR
+from heat_pump_adoption_modelling import PROJECT_DIR, get_yaml_config, Path
 from heat_pump_adoption_modelling.getters.load_mcs import load_inflation
 from heat_pump_adoption_modelling.pipeline.preprocessing.mcs_epc_joining import (
     join_mcs_epc_data,
 )
+
+# Load config file
+config = get_yaml_config(
+    Path(str(PROJECT_DIR) + "/heat_pump_adoption_modelling/config/base.yaml")
+)
+
+FIG_PATH = Path(str(PROJECT_DIR) + config["HEAT_PUMP_COSTS_FIG_PATH"])
+
 
 # Load data for plotting
 
