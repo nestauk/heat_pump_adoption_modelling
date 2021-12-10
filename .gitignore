@@ -105,6 +105,10 @@ target/
 /inputs/*
 !/inputs/*.md
 /outputs/data/*
+
+/outputs/mcs/*
+/outputs/Recycling/*
+
 !/outputs/data/*.md
 /outputs/models/*
 !/outputs/models/*.md
@@ -118,8 +122,6 @@ target/
 !/outputs/supervised_model/figures/.gitkeep
 /outputs/supervised_model/*
 !/outputs/supervised_model/.gitkeep
-
-/outputs/mcs_epc.csv
 
 /outputs/EPC_data/preprocessed_data/Q2_2021/*
 !/outputs/EPC_data/preprocessed_data/Q2_2021
