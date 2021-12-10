@@ -235,6 +235,10 @@ def train_and_evaluate(
 
     return model
 
+    epc_df.to_csv(SUPERVISED_MODEL_OUTPUT + "epc_df_encoded.csv")
+
+    return epc_df
+
 
 def predict_heat_pump_status(
     X, y, target_variable="HP_Installed", save_predictions=False

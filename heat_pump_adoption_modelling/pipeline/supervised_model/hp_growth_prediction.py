@@ -166,7 +166,7 @@ def get_data_with_labels(df, target_variable, drop_features=[]):
     return X, y
 
 
-def temporal_model_prediction(X, y, target_variable="GROWTH", save_predictions=False):
+def predict_hp_growth_for_area(X, y, target_variable="GROWTH", save_predictions=False):
 
     print("Number of samples:", X.shape[0])
     print("Number of features:", X.shape[1])
@@ -203,10 +203,13 @@ def temporal_model_prediction(X, y, target_variable="GROWTH", save_predictions=F
             data_with_label_and_pred.loc[indices_train, "training set"] = True
             data_with_label_and_pred.loc[indices_test, "training set"] = False
 
-            pd.to_csv(
-                SUPERVISED_MODEL_OUTPUT
-                + "{}_predictions_with_{}.csv".format(target_variable, model)
+            output_filename = "{}_predictions_with_{}.csv".format(
+                target_variable, model
             )
+
+            print("Output saved {}".format(output_filename))
+
+            pd.to_csv(SUPERVISED_MODEL_OUTPUT + output_filename)
 
 
 param_grid_dict = {

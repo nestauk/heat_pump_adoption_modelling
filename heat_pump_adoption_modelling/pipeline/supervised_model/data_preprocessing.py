@@ -334,7 +334,7 @@ def get_aggregated_temp_data(
     )
 
     # Drop unnecessary features
-    source_year = source_year.drop(columns=drop_features)
+    source_year = source_year.drop(columns=drop_features + ["BUILDING_ID"])
 
     # Encode agglomerated features
     source_year = data_aggregation.encode_agglomerated_features(
@@ -395,7 +395,31 @@ def epc_sample_loading(subset="5m", preload=True):
     return epc_df
 
 
-def data_preprocessing(epc_df, encode_features=True, verbose=True):
+def feature_encoding_for_hp_status(epc_df):
+
+    epc_df = feature_encoding.feature_encoding_pipeline(
+        epc_df,
+        ordinal_features,
+        reduce_categories=True,
+        onehot_features="auto",
+        unaltered_features=[
+            "POSTCODE",
+            "POSTCODE_DISTRICT",
+            "POSTCODE_SECTOR",
+            "POSTCODE_UNIT",
+            "HP_INSTALLED",
+            "N_ENTRIES_BUILD_ID",
+            "POSTCODE_AREA",
+        ],
+        drop_features=drop_features,
+    )
+
+    epc_df.to_csv(SUPERVISED_MODEL_OUTPUT + "epc_df_encoded.csv")
+
+    return epc_df
+
+
+def data_preprocessing(epc_df, encode_features=False, verbose=True):
 
     FIGPATH = SUPERVISED_MODEL_FIG_PATH
 
@@ -407,7 +431,7 @@ def data_preprocessing(epc_df, encode_features=True, verbose=True):
 
     epc_df = add_mcs_install_dates(epc_df)
     epc_df = data_aggregation.get_postcode_levels(epc_df)
-    # epc_df.to_csv(SUPERVISED_MODEL_OUTPUT + "epc_df_preprocessed.csv")
+    epc_df.to_csv(SUPERVISED_MODEL_OUTPUT + "epc_df_preprocessed.csv")
 
     if encode_features:
 
