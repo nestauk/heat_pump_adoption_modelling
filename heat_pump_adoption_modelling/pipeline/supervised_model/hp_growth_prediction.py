@@ -1,4 +1,6 @@
 from heat_pump_adoption_modelling import PROJECT_DIR, get_yaml_config, Path
+from pandas.core.frame import DataFrame
+from scipy.sparse import data
 from sklearn.model_selection import GridSearchCV
 
 
@@ -37,7 +39,7 @@ config = get_yaml_config(
 )
 
 FIG_PATH = PROJECT_DIR / config["SUPERVISED_MODEL_FIG_PATH"]
-SUPERVISED_MODEL_OUTPUT = PROJECT_DIR / config["SUPERVISED_MODEL_FIG_PATH"]
+SUPERVISED_MODEL_OUTPUT = str(PROJECT_DIR) + config["SUPERVISED_MODEL_OUTPUT"]
 
 model_dict = {
     #  "SVM Regressor": svm.SVR(),
@@ -150,12 +152,13 @@ def train_and_evaluate(
     return model
 
 
-def get_data_with_labels(df, target_variable, drop_features=[]):
+def get_data_with_labels(df, target_variables, drop_features=[]):
 
     X = df.copy()
-    y = np.array(X[target_variable])
+    # y = np.array(X[target_variables])
+    y = X[target_variables]
 
-    for col in [target_variable] + drop_features:
+    for col in target_variables + drop_features:
         if col in X.columns:
             del X[col]
 
@@ -166,7 +169,9 @@ def get_data_with_labels(df, target_variable, drop_features=[]):
     return X, y
 
 
-def predict_hp_growth_for_area(X, y, target_variable="GROWTH", save_predictions=False):
+def predict_hp_growth_for_area(
+    X, y, target_variables=["GROWTH", "HP_COVERAGE_FUTURE"], save_predictions=False
+):
 
     print("Number of samples:", X.shape[0])
     print("Number of features:", X.shape[1])
@@ -174,42 +179,71 @@ def predict_hp_growth_for_area(X, y, target_variable="GROWTH", save_predictions=
 
     feature_names = X.columns
 
+    X.reset_index(inplace=True)
+
     indices = np.arange(X.shape[0])
 
     X_prep = prepr_pipeline.fit_transform(X)
+
     # Split into train and test sets
-    X_train, X_test, y_train, y_test, indices_train, indices_test = train_test_split(
-        X_prep, y, indices, test_size=0.1, random_state=42
-    )
+    (
+        X_train,
+        X_test,
+        y_train,
+        y_test,
+        indices_train,
+        indices_test,
+    ) = train_test_split(X_prep, y, indices, test_size=0.1, random_state=42)
+
+    X.at[indices_train, "training set"] = True
+
+    if save_predictions:
+        original_df = X.copy()
+        original_df.reset_index(inplace=True)
+
+        original_df["training set"] = False
+        original_df.at[indices_train, "training set"] = True
 
     for model in model_dict.keys():
-        trained_model = train_and_evaluate(
-            model, X_train, y_train, X_test, y_test, target_variable, feature_names
-        )
+
+        if save_predictions:
+            data_with_label_and_pred = original_df.copy()
+
+        for target in target_variables:
+
+            y_train_target = np.array(y_train[target])
+            y_test_target = np.array(y_test[target])
+
+            trained_model = train_and_evaluate(
+                model,
+                X_train,
+                y_train_target,
+                X_test,
+                y_test_target,
+                target,
+                feature_names,
+            )
+
+            if save_predictions:
+
+                predictions = trained_model.predict(X_prep)
+
+                data_with_label_and_pred[target] = y[target]  # np.array(y[target])
+                data_with_label_and_pred[target + ": prediction"] = predictions
+                data_with_label_and_pred[target + ": error"] = abs(
+                    data_with_label_and_pred[target + ": prediction"]
+                    - data_with_label_and_pred[target]
+                )
 
         if save_predictions:
 
-            predictions = trained_model.predict(X_prep)
+            output_filename = "Predictions_with_{}.csv".format(model)
 
-            data_with_label_and_pred = X.copy()
-            data_with_label_and_pred[target_variable] = y
-            data_with_label_and_pred["prediction"] = predictions
-
-            data_with_label_and_pred["error"] = abs(
-                data_with_label_and_pred["predictions"]
-                - data_with_label_and_pred[target_variable]
+            print(
+                "Output saved to {}".format(SUPERVISED_MODEL_OUTPUT + output_filename)
             )
 
-            data_with_label_and_pred.loc[indices_train, "training set"] = True
-            data_with_label_and_pred.loc[indices_test, "training set"] = False
-
-            output_filename = "{}_predictions_with_{}.csv".format(
-                target_variable, model
-            )
-
-            print("Output saved {}".format(output_filename))
-
-            pd.to_csv(SUPERVISED_MODEL_OUTPUT + output_filename)
+            data_with_label_and_pred.to_csv(SUPERVISED_MODEL_OUTPUT + output_filename)
 
 
 param_grid_dict = {

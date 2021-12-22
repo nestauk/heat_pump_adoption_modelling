@@ -5,6 +5,7 @@ from heat_pump_adoption_modelling.pipeline.supervised_model import plotting_util
 import pandas as pd
 import numpy as np
 from sklearn import preprocessing
+from sklearn import svm
 
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
@@ -16,7 +17,7 @@ from sklearn.linear_model import SGDClassifier
 from sklearn.model_selection import GridSearchCV
 
 from sklearn.model_selection import train_test_split
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import cross_validate
 from sklearn.metrics import accuracy_score
 from sklearn.linear_model import SGDClassifier
 from sklearn.model_selection import cross_val_score
@@ -28,7 +29,7 @@ config = get_yaml_config(
 )
 
 FIG_PATH = PROJECT_DIR / config["SUPERVISED_MODEL_FIG_PATH"]
-SUPERVISED_MODEL_OUTPUT = PROJECT_DIR / config["SUPERVISED_MODEL_FIG_PATH"]
+SUPERVISED_MODEL_OUTPUT = str(PROJECT_DIR) + config["SUPERVISED_MODEL_OUTPUT"]
 
 
 prepr_pipeline = Pipeline(
@@ -71,6 +72,7 @@ best_params = {
 model_dict = {
     "Logistic Regression": LogisticRegression(random_state=42),
     "Linear Support Vector Classifier": SGDClassifier(random_state=42),
+    "Support Vector Classifier": svm.SVC(probability=True, random_state=42),
 }
 
 
@@ -221,23 +223,31 @@ def train_and_evaluate(
 
     # print(model.coef_, model.intercept_)
 
-    acc = cross_val_score(model, X_train, y_train, cv=cv, scoring="accuracy")
-    f1 = cross_val_score(model, X_train, y_train, cv=cv, scoring="f1")
-    recall = cross_val_score(model, X_train, y_train, cv=cv, scoring="recall")
-    precision = cross_val_score(model, X_train, y_train, cv=cv, scoring="precision")
+    scores = cross_validate(
+        model,
+        X_train,
+        y_train,
+        scoring=("accuracy", "f1", "recall", "precision"),
+        return_train_score=True,
+        cv=cv,
+    )
+
     print()
-    print("10-fold Cross Validation\n---------\n")
-    print("Accuracy:", round(acc.mean(), 2))
-    print("F1 Score:", round(f1.mean(), 2))
-    print("Recall:", round(recall.mean(), 2))
-    print("Precision:", round(precision.mean(), 2))
+    print("10-fold Cross Validation: Train \n---------\n")
+    print("Accuracy:", round(scores["train_accuracy"].mean(), 2))
+    print("F1 Score:", round(scores["train_f1"].mean(), 2))
+    print("Recall:", round(scores["train_recall"].mean(), 2))
+    print("Precision:", round(scores["train_precision"].mean(), 2))
     print()
+    print("10-fold Cross Validation: Test \n---------\n")
+    print("Accuracy:", round(scores["test_accuracy"].mean(), 2))
+    print("F1 Score:", round(scores["test_f1"].mean(), 2))
+    print("Recall:", round(scores["test_recall"].mean(), 2))
+    print("Precision:", round(scores["test_precision"].mean(), 2))
+    print()
+    print("-------------------------------")
 
     return model
-
-    epc_df.to_csv(SUPERVISED_MODEL_OUTPUT + "epc_df_encoded.csv")
-
-    return epc_df
 
 
 def predict_heat_pump_status(
@@ -251,6 +261,8 @@ def predict_heat_pump_status(
     print()
 
     feature_names = X.columns
+
+    # X.reset_index(inplace=True)
     indices = np.arange(X.shape[0])
 
     X_prep = prepr_pipeline.fit_transform(X)
@@ -258,6 +270,13 @@ def predict_heat_pump_status(
     X_train, X_test, y_train, y_test, indices_train, indices_test = train_test_split(
         X_prep, y, indices, test_size=0.1, random_state=42, stratify=y
     )
+
+    if save_predictions:
+        original_df = X.copy()
+        # original_df.reset_index(inplace=True)
+
+        original_df["training set"] = False
+        original_df.at[indices_train, "training set"] = True
 
     for model in model_dict.keys():
         trained_model = train_and_evaluate(
@@ -268,24 +287,45 @@ def predict_heat_pump_status(
 
         if save_predictions:
 
+            data_with_label_and_pred = original_df.copy()
+
             predictions = trained_model.predict(X_prep)
 
-            data_with_label_and_pred = X.copy()
-            data_with_label_and_pred[target_variable] = y
+            if model == "Logistic Regression":
+                data_with_label_and_pred["proba 1"] = trained_model.predict_proba(
+                    X_prep
+                )[0][0]
+                data_with_label_and_pred["proba 2"] = trained_model.predict_proba(
+                    X_prep
+                )[0][1]
+
+            elif model == "Support Vector Classifier":
+
+                print(trained_model.predict_proba(X_prep).shape)
+
+                data_with_label_and_pred["proba 1"] = trained_model.predict_proba(
+                    X_prep
+                )[:, 0]
+                data_with_label_and_pred["proba 2"] = trained_model.predict_proba(
+                    X_prep
+                )[:, 1]
+            else:
+                pass
+
+            data_with_label_and_pred["ground truth"] = y
             data_with_label_and_pred["prediction"] = predictions
 
-            data_with_label_and_pred["error"] = abs(
-                data_with_label_and_pred["predictions"]
-                - data_with_label_and_pred[target_variable]
+            data_with_label_and_pred["error"] = (
+                data_with_label_and_pred["prediction"]
+                == data_with_label_and_pred["ground truth"]
             )
 
-            data_with_label_and_pred.loc[indices_train, "training set"] = True
-            data_with_label_and_pred.loc[indices_test, "training set"] = False
+            output_filename = "Predictions_with_{}.csv".format(model)
 
-            pd.to_csv(
-                SUPERVISED_MODEL_OUTPUT
-                + "{}_predictions_with_{}.csv".format(target_variable, model)
+            print(
+                "Output saved to {}".format(SUPERVISED_MODEL_OUTPUT + output_filename)
             )
+            data_with_label_and_pred.to_csv(SUPERVISED_MODEL_OUTPUT + output_filename)
 
     return trained_models
 
