@@ -2,15 +2,13 @@
 
 ## Goals
 
-The goal of this branch of the project is to build a supervised model for predicting heat pump adoption in domestic housing.
+The goal is to build a supervised learning model that predicts heat pump adoption in domestic housing, based on characteristics of current heat pump adopters. A supervised model learns patterns from examples for which both input data and outcome are known in order to predict the outcome for unseen input data, e.g. predicting the heat pump status of a property based on its building characteristics.
 
-A static model predicts whether a single household will likely get a heat pump in the future, while a temporal model will predict the growth in heat pump installations for a given area (postcode) over a specific time.
-
-We hope to gain insights into heat adoption on a temporal level and aim to identify factors that inhibit or accelerate heat pump adoption.
+A static model predicts whether a single household has a heat pump installed or will get a heat pump at a later point. It uses historical data to make these predictions. This allows us to identify features that are suitable for predicting heat pump uptake and study the influence of social versus building features. The temporal model predicts the growth in heat pump installations for a given area at a postcode level over a specific time period. We hope to gain insights into the growth of heat pump adoption on a temporal level, identify accelerators and inhibitors of heat pump adoption and explore why certain areas show a much higher or lower heat pump uptake than predicted.
 
 ## Data
 
-Data used for this model
+Data used for this model:
 
 - Preprocessed EPC data (Version Nesta 2021)
 - Index of Multiple Deprivation: IMD Rank, Income Score, Employment Score
@@ -36,7 +34,7 @@ This chart shows an example for highly correlated features.
 
 <img src="./img/Highly correlated features.jpg" width="75%">
 
-While interesting to analyse the correlations between features, we only discard few features using this method with very high correlations: LODGEMENT_DATE, INSPECTION_DATE (as string), CURR_ENERGY_RATING_NUM, ENERGY_RATING_CAT, UNIQUE_ADDRESS, MAINHEAT_DESCRIPTION, MAINHEAT_SYSTEM.
+While interesting to analyse the correlations between features, we only discard few features using this method with very high correlations: `LODGEMENT_DATE`, `INSPECTION_DATE` (as string), `CURR_ENERGY_RATING_NUM`, `ENERGY_RATING_CAT`, `UNIQUE_ADDRESS`, `MAINHEAT_DESCRIPTION`, `MAINHEAT_SYSTEM`.
 
 ### Integration of MCS Installation Dates
 
@@ -46,10 +44,10 @@ Using address matching, we find matches for 51150 out of 60690 domestic MCS entr
 
 ### Target Variables
 
-For the static model that predicts the current heat pump status of a property, the target variable is HP_INSTALLED. The features HP_SYSTEM, HP_TYPE and HP_INSTALLED are derived from MAINHEAT_DESCRIPTION (describing the current heating system) and strongly corrlate with them and thus all of them need to be removed from the training data X.
+For the static model that predicts the current heat pump status of a property, the target variable is `HP_INSTALLED`. The features `HP_SYSTEM`, `HP_TYPE` and `HP_INSTALLED` are derived from `MAINHEAT_DESCRIPTION` (describing the current heating system) and strongly corrlate with them and thus all of them need to be removed from the training data X.
 
-For predicting the future heat pump status, we need properties with at least two EPC entries, e.g. one before the heat pump installation and one after. The target variable is HP_INSTALLED of the latest EPC entry.
-For this model, removing the feature related to MAINHEAT_DESCRIPTION do not necessarily need to be removed, although we discard some of them due to redundancy.
+For predicting the future heat pump status, we need properties with at least two EPC entries, e.g. one before the heat pump installation and one after. The target variable is `HP_INSTALLED` of the latest EPC entry.
+For this model, removing the feature related to `MAINHEAT_DESCRIPTION` do not necessarily need to be removed, although we discard some of them due to redundancy.
 
 ---
 
@@ -108,7 +106,7 @@ We normalise by the real-world number of properties. However, we discard this op
 
 ### Feature Encoding
 
-We have two types of features: numerical and categorical features. A numerical feature consists of numbers, for example the TOTAL*FLOOR_AREA. A categorical feature consists of differente categories, for example \_owner-occupied* or _social rental_ for TENURE or _very poor_ to _very good_ for WINDOW_ENERGY_EFFICIENCY.
+We have two types of features: numerical and categorical features. A numerical feature consists of numbers, for example the `TOTAL_FLOOR_AREA`. A categorical feature consists of differente categories, for example _owner-occupied_ or _social rental_ for `TENURE` or _very poor_ to _very good_ for `WINDOW_ENERGY_EFFICIENCY`.
 
 Numeric features do not require any special encoding.
 
@@ -119,7 +117,10 @@ Categorical features can be divided two groups: those with a natural ordering an
 We apply ordinal encoding to those features using manually created rankings. The different categories are given integer values in ascending order, starting with 1.
 
 The follow features are ordinal encoded:
-`MAINHEAT_ENERGY_EFF", "CURRENT_ENERGY_RATING", "POTENTIAL_ENERGY_RATING", "FLOOR_ENERGY_EFF", "WINDOWS_ENERGY_EFF", "HOT_WATER_ENERGY_EFF", "LIGHTING_ENERGY_EFF", "GLAZED_TYPE", "MAINHEATC_ENERGY_EFF", "WALLS_ENERGY_EFF", "ROOF_ENERGY_EFF", "MAINS_GAS_FLAG", "CONSTRUCTION_AGE_BAND_ORIGINAL", "CONSTRUCTION_AGE_BAND", "N_ENTRIES", "N_ENTRIES_BUILD_ID", "ENERGY_RATING_CAT"`
+
+```
+"MAINHEAT_ENERGY_EFF", "CURRENT_ENERGY_RATING", "POTENTIAL_ENERGY_RATING", "FLOOR_ENERGY_EFF", "WINDOWS_ENERGY_EFF", "HOT_WATER_ENERGY_EFF", "LIGHTING_ENERGY_EFF", "GLAZED_TYPE", "MAINHEATC_ENERGY_EFF", "WALLS_ENERGY_EFF", "ROOF_ENERGY_EFF", "MAINS_GAS_FLAG", "CONSTRUCTION_AGE_BAND_ORIGINAL", "CONSTRUCTION_AGE_BAND", "N_ENTRIES", "N_ENTRIES_BUILD_ID", "ENERGY_RATING_CAT"
+```
 
 #### One-Hot Encoding
 
@@ -134,6 +135,7 @@ Short version:
 
 - For numerical features, we take the median
 - For categorical ones, we get the % of properties with that category
+- For categorical features, we also compute to most frequent value
 
 _More detailed description follows_
 
@@ -153,15 +155,33 @@ To Do:
 
 - [ ] More sophistical way for data imputing
 
-### Training Data
+## Models and Performance
 
-For the static model that predicts the current heat pump status, we can include...
+### HP Status on Household Level
+
+#### Preparation
 
 _To be completed_
 
-## Models and Performance
+To Do:
 
-### Static HP Model for predicting future HP installation
+- [ ] Documentation about balancing dataset
+
+#### Models
+
+_To be completed_
+
+To Do:
+
+- [ ] Describe which models used
+
+#### Results
+
+_To be completed_
+
+To Do:
+
+- [ ] Update with most recent results
 
 Linear Support Vector Classifier on balanced set:
 
@@ -212,7 +232,11 @@ Most relevant features for predicting future HP installation:
 - Social rental
 - Main Heating Controls (neg)
 
-### Temporal HP Model
+#### Discussion
+
+### HP Growth on Postcode Level
+
+#### Results
 
 **HP Coverage**
 
@@ -252,7 +276,16 @@ Most relevant features for predicting future HP installation:
 
 <img src="./img//Growth using Random Forest Regressor on Validation Set.png" width="60%">
 
-## To Do
+#### Discussion
+
+## Error Analysis
+
+- How well do models perform?
+- Where do they go wrong?
+- What can False Positives tell us?
+- Decision tree?
+
+#### To Do
 
 - [ ] X: ground truth, y : error, relatiive error
 - [ ] Map with predictions, ground truths and errors
@@ -260,8 +293,9 @@ Most relevant features for predicting future HP installation:
 - [ ] Predict until 2025
 - [ ] Plot decision tree
 
-## Some notes to integrate somewhere (will be deleted later):
+## To be sorted, integrated and deleted:
 
+```
 - How to deal with NaN? Set to 0, -1, 999? Drop?
 - Optimise balance vs. representativness
 - Try different ratios
@@ -382,3 +416,4 @@ Standard deviation: 0.00014853571549387916
 Category Accuracy with 5% steps : 0.98
 
 2.36% growth for 2025
+```
