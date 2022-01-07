@@ -25,13 +25,14 @@ config = get_yaml_config(
     Path(str(PROJECT_DIR) + "/heat_pump_adoption_modelling/config/base.yaml")
 )
 
+MERGED_PATH = Path(str(PROJECT_DIR) + config["MCS_EPC_MERGED_PATH"])
 FIG_PATH = Path(str(PROJECT_DIR) + config["HEAT_PUMP_COSTS_FIG_PATH"])
 
 
 # Load data for plotting
 
 
-def plottable_data(file_path=str(PROJECT_DIR) + merged_path):
+def plottable_data(file_path=MERGED_PATH):
     """Load merged MCS/EPC data in a suitable form for plotting
     (with additional variables: "built_post_1950" indicating
     whether or not the property was built after 1950, "built_pre_1950"
@@ -217,9 +218,7 @@ def plot_manufacturer_bar(df):
 
     plt.tight_layout()
 
-    plt.savefig(
-        PROJECT_DIR / "outputs/figures/manufacturer_bar.svg", bbox_inches="tight"
-    )
+    plt.savefig(FIG_PATH / "manufacturer_bar.svg", bbox_inches="tight")
 
 
 def plot_median_costs(df):
@@ -276,7 +275,7 @@ def plot_median_costs(df):
 
     plt.tight_layout()
 
-    plt.savefig(PROJECT_DIR / "outputs/figures/median_costs.svg", bbox_inches="tight")
+    plt.savefig(FIG_PATH / "median_costs.svg", bbox_inches="tight")
 
 
 def scop_trend_plot(df):
@@ -344,7 +343,7 @@ def scop_trend_plot(df):
         title="Flow temp. ($\degree$C)", loc="center left", bbox_to_anchor=(1, 0.5)
     )
 
-    plt.savefig("outputs/figures/mean_scop.svg", bbox_inches="tight")
+    plt.savefig(FIG_PATH / "mean_scop.svg", bbox_inches="tight")
 
 
 def ashp_capacity_cost_boxplot(df):
@@ -400,9 +399,7 @@ def ashp_capacity_cost_boxplot(df):
     plt.setp(ax, xticklabels=capacity_list)
     plt.tight_layout()
 
-    plt.savefig(
-        PROJECT_DIR / "outputs/figures/capacity_cost_boxplots.svg", bbox_inches="tight"
-    )
+    plt.savefig(FIG_PATH / "capacity_cost_boxplots.svg", bbox_inches="tight")
 
 
 def ashp_archetypes_boxplot(df, factor):
@@ -486,8 +483,7 @@ def ashp_archetypes_boxplot(df, factor):
     version_name = "cost" if factor == "inflated_cost" else "capacity"
 
     plt.savefig(
-        PROJECT_DIR
-        / "outputs/figures/ashp_{}_archetype_boxplots.svg".format(version_name),
+        FIG_PATH / "ashp_{}_archetype_boxplots.svg".format(version_name),
         bbox_inches="tight",
     )
 
