@@ -20,11 +20,13 @@ from heat_pump_adoption_modelling.pipeline.preprocessing.mcs_epc_joining import 
     join_mcs_epc_data,
 )
 
+# Load config file
 config = get_yaml_config(
     Path(str(PROJECT_DIR) + "/heat_pump_adoption_modelling/config/base.yaml")
 )
 
-merged_path = config["MCS_EPC_MERGED_PATH"]
+FIG_PATH = Path(str(PROJECT_DIR) + config["HEAT_PUMP_COSTS_FIG_PATH"])
+
 
 # Load data for plotting
 

@@ -30,6 +30,7 @@ address_fields = config["MCS_EPC_ADDRESS_FIELDS"]
 characteristic_fields = config["MCS_EPC_CHARACTERISTIC_FIELDS"]
 matching_parameter = config["MCS_EPC_MATCHING_PARAMETER"]
 merged_path = config["MCS_EPC_MERGED_PATH"]
+supervised_model_features = config["EPC_PREPROC_FEAT_SELECTION"]
 
 #### UTILS
 
@@ -159,6 +160,19 @@ def prepare_epcs(epcs):
     ----------
     epcs : pandas.Dataframe
         Dataframe containing EPC records with added fields."""
+
+    # Keep original EPC address
+    epcs["compressed_epc_address"] = (
+        epcs["ADDRESS1"] + epcs["ADDRESS2"] + epcs["POSTCODE"]
+    )
+
+    # Remove white spaces
+    epcs["compressed_epc_address"] = (
+        epcs["compressed_epc_address"]
+        .str.strip()
+        .str.lower()
+        .replace(r"\s+", "", regex=True)
+    )
 
     # Remove spaces, uppercase and strip whitespace from
     # postcodes in order to exact match on this field
