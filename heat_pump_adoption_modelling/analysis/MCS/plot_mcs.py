@@ -14,20 +14,27 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-from heat_pump_adoption_modelling import PROJECT_DIR
+from heat_pump_adoption_modelling import PROJECT_DIR, get_yaml_config, Path
 from heat_pump_adoption_modelling.getters.load_mcs import load_inflation
 from heat_pump_adoption_modelling.pipeline.preprocessing.mcs_epc_joining import (
     join_mcs_epc_data,
 )
 
+config = get_yaml_config(
+    Path(str(PROJECT_DIR) + "/heat_pump_adoption_modelling/config/base.yaml")
+)
+
+merged_path = config["MCS_EPC_MERGED_PATH"]
+
 # Load data for plotting
 
 
-def plottable_data(file_path=PROJECT_DIR / "outputs/mcs_epc.csv"):
+def plottable_data(file_path=str(PROJECT_DIR) + merged_path):
     """Load merged MCS/EPC data in a suitable form for plotting
     (with additional variables: "built_post_1950" indicating
-    whether or not the property was built after 1950, and
-    "inflated_cost" indicating inflation-adjusted installation cost).
+    whether or not the property was built after 1950, "built_pre_1950"
+    being the inverse of built_post_1950 and "inflated_cost" indicating
+    inflation-adjusted installation cost).
 
     Parameters
     ----------
@@ -37,23 +44,24 @@ def plottable_data(file_path=PROJECT_DIR / "outputs/mcs_epc.csv"):
 
     Return
     ----------
-    merged : pd.DataFrame
+    mcs_epc : pd.DataFrame
         Merged MCS-EPC data with added variables.
     """
 
     if file_path is None:
-        merged = join_mcs_epc_data()
+        mcs_epc = join_mcs_epc_data()
     else:
-        merged = pd.read_csv(file_path)
+        mcs_epc = pd.read_csv(file_path)
 
     # Add inflated cost variable
     inflation = load_inflation()
-    merged = merged.merge(inflation, how="left", on="year")
-    merged["inflated_cost"] = merged["cost"] * merged["multiplier"]
+    mcs_epc = mcs_epc.merge(inflation, how="left", on="year")
+    mcs_epc["inflated_cost"] = mcs_epc["cost"] * mcs_epc["multiplier"]
 
     # Add indicator variable for properties built after 1950
     ages_dict = {
         "England and Wales: before 1900": False,
+        "Scotland: before 1919": False,
         "1900-1929": False,
         "1930-1949": False,
         "1950-1966": True,
@@ -69,43 +77,15 @@ def plottable_data(file_path=PROJECT_DIR / "outputs/mcs_epc.csv"):
         None: pd.NA,
     }
 
-    merged["built_post_1950"] = merged["CONSTRUCTION_AGE_BAND"].apply(
-        lambda x: ages_dict[x]
-    )
+    mcs_epc["built_post_1950"] = mcs_epc["CONSTRUCTION_AGE_BAND"].map(ages_dict)
+    mcs_epc["built_pre_1950"] = ~mcs_epc["built_post_1950"].astype("boolean")
 
-    return merged
-
-
-# Define functions to assist with "archetype" boxplots
+    return mcs_epc
 
 
-def bool_not(series):
-    """Given a series of bools and NAs, return a series
-    with NAs in the same places but bools inverted.
-
-    Parameters
-    ----------
-    series : pd.Series
-        A series of bools and NAs.
-
-    Return
-    ----------
-    result : pd.Series
-        A series with NAs in the same places and bools inverted.
-    """
-
-    # Initialise with a series of NAs
-    result = pd.Series(np.repeat(pd.NA, len(series)))
-
-    result.loc[series == True] = False
-    result.loc[series == False] = True
-
-    return result
-
-
-def generate_archetype_dict(df):
-    """Given a dataframe, produce a dictionary of archetype labels
-    to readable names and logical vectors indicating the rows of
+def archetypes(df):
+    """Given a dataframe, produce a list of tupes of
+    archetype descriptions and logical vectors indicating the rows of
     the dataframe that conform to that archetype.
     Archetypes are defined in the top table of sheet "DAv2" here:
     https://docs.google.com/spreadsheets/d/1HkUYneexFXDTgMyJs_UaUbBmXGUum6I1K4L2GP2rEjQ/edit?usp=sharing
@@ -113,31 +93,24 @@ def generate_archetype_dict(df):
     Parameters
     ----------
     df : pd.DataFrame
-        Dataframe with "PROPERTY_TYPE", "BUILT_FORM" and "built_post_1950"
-        variables.
+        Dataframe with "PROPERTY_TYPE", "BUILT_FORM", "built_post_1950" and
+        "built_pre_1950" variables.
 
     Return
     ----------
-    result : dict
-        A dictionary from archetype numbers to names and logical vectors.
+    result : archetype_list
+        A list of (archetype name, logical vector) tuples.
     """
-
-    archetype_dict = {
-        "archetype_1": {
-            "name": "Post-1950 flats",
-            "condition": (df.PROPERTY_TYPE == "Flat") & (df.built_post_1950),
-        },
-        "archetype_2": {
-            "name": "Pre-1950 flats",
-            "condition": (df.PROPERTY_TYPE == "Flat") & bool_not(df.built_post_1950),
-        },
-        "archetype_3": {
-            "name": "Post-1950 bungalows",
-            "condition": (df.PROPERTY_TYPE == "Bungalow") & (df.built_post_1950),
-        },
-        "archetype_4": {
-            "name": "Post-1950 semi-detached,\nterraced and maisonettes",
-            "condition": (
+    archetype_list = [
+        ("Post-1950 flats", (df.PROPERTY_TYPE == "Flat") & (df.built_post_1950)),  # 1
+        ("Pre-1950 flats", (df.PROPERTY_TYPE == "Flat") & (df.built_pre_1950)),  # 2
+        (  # 3
+            "Post-1950 bungalows",
+            (df.PROPERTY_TYPE == "Bungalow") & (df.built_post_1950),
+        ),
+        (  # 4
+            "Post-1950 semi-detached,\nterraced and maisonettes",
+            (
                 (df.PROPERTY_TYPE == "Maisonette")
                 | (
                     (df.PROPERTY_TYPE == "House")
@@ -155,18 +128,16 @@ def generate_archetype_dict(df):
                 )
             )
             & (df.built_post_1950),
-        },
-        "archetype_5": {
-            "name": "Post-1950 detached",
-            "condition": (
-                (df.PROPERTY_TYPE == "House")
-                & (df.BUILT_FORM == "Detached")
-                & (df.built_post_1950)
-            ),
-        },
-        "archetype_6": {
-            "name": "Pre-1950 semi-detached,\nterraced and maisonettes",
-            "condition": (
+        ),
+        (  # 5
+            "Post-1950 detached",
+            (df.PROPERTY_TYPE == "House")
+            & (df.BUILT_FORM == "Detached")
+            & (df.built_post_1950),
+        ),
+        (  # 6
+            "Pre-1950 semi-detached,\nterraced and maisonettes",
+            (
                 (df.PROPERTY_TYPE == "Maisonette")
                 | (
                     (df.PROPERTY_TYPE == "House")
@@ -177,24 +148,21 @@ def generate_archetype_dict(df):
                     )
                 )
             )
-            & bool_not(df.built_post_1950),
-        },
-        "archetype_7": {
-            "name": "Pre-1950 bungalows",
-            "condition": (df.PROPERTY_TYPE == "Bungalow")
-            & bool_not(df.built_post_1950),
-        },
-        "archetype_8": {
-            "name": "Pre-1950 detached",
-            "condition": (
-                (df.PROPERTY_TYPE == "House")
-                & (df.BUILT_FORM == "Detached")
-                & bool_not(df.built_post_1950)
-            ),
-        },
-    }
+            & (df.built_pre_1950),
+        ),
+        (  # 7
+            "Pre-1950 bungalows",
+            (df.PROPERTY_TYPE == "Bungalow") & (df.built_pre_1950),
+        ),
+        (  # 8
+            "Pre-1950 detached",
+            (df.PROPERTY_TYPE == "House")
+            & (df.BUILT_FORM == "Detached")
+            & (df.built_pre_1950),
+        ),
+    ]
 
-    return archetype_dict
+    return archetype_list
 
 
 #### PLOTS
@@ -210,7 +178,7 @@ def plot_manufacturer_bar(df):
 
     Return
     ----------
-        No objects returned, but figure is saved as manufacturer_bar.png.
+        No objects returned, but figure is saved as manufacturer_bar.svg.
 
     """
     manufacturer_data = (
@@ -238,14 +206,18 @@ def plot_manufacturer_bar(df):
 
     ax.barh(manufacturer_data.index[::-1], manufacturer_data[::-1], zorder=5)
 
-    ax.set_title("Top 10 manufacturers of MCS-certified installed heat pumps")
+    ax.set_title(
+        "Top 10 manufacturers of MCS-certified\ninstalled heat pumps (2010-21)"
+    )
     ax.set_xlabel("Number of heat pumps")
     ax.set_ylabel("Manufacturer")
     ax.grid(axis="x", color="0.8", zorder=0)
 
     plt.tight_layout()
 
-    plt.savefig(PROJECT_DIR / "outputs/figures/manufacturer_bar.png")
+    plt.savefig(
+        PROJECT_DIR / "outputs/figures/manufacturer_bar.svg", bbox_inches="tight"
+    )
 
 
 def plot_median_costs(df):
@@ -261,7 +233,7 @@ def plot_median_costs(df):
 
     Return
     ----------
-        No objects returned, but figure is saved as median_costs.png.
+        No objects returned, but figure is saved as median_costs.svg.
     """
 
     cost_data = (
@@ -302,7 +274,7 @@ def plot_median_costs(df):
 
     plt.tight_layout()
 
-    plt.savefig(PROJECT_DIR / "outputs/figures/median_costs.png")
+    plt.savefig(PROJECT_DIR / "outputs/figures/median_costs.svg", bbox_inches="tight")
 
 
 def scop_trend_plot(df):
@@ -318,7 +290,7 @@ def scop_trend_plot(df):
 
     Return
     ----------
-        No objects returned, but figure is saved as mean_scop.png.
+        No objects returned, but figure is saved as mean_scop.svg.
     """
 
     flow_temps = [35, 40, 45, 50, 55]
@@ -370,7 +342,7 @@ def scop_trend_plot(df):
         title="Flow temp. ($\degree$C)", loc="center left", bbox_to_anchor=(1, 0.5)
     )
 
-    plt.savefig("outputs/figures/mean_scop.png")
+    plt.savefig("outputs/figures/mean_scop.svg", bbox_inches="tight")
 
 
 def ashp_capacity_cost_boxplot(df):
@@ -387,7 +359,7 @@ def ashp_capacity_cost_boxplot(df):
 
     Return
     ----------
-        No objects returned, but figure is saved as capacity_cost_boxplots.png.
+        No objects returned, but figure is saved as capacity_cost_boxplots.svg.
     """
 
     # Filter to only recent and ASHP data
@@ -426,10 +398,12 @@ def ashp_capacity_cost_boxplot(df):
     plt.setp(ax, xticklabels=capacity_list)
     plt.tight_layout()
 
-    plt.savefig(PROJECT_DIR / "outputs/figures/capacity_cost_boxplots.png")
+    plt.savefig(
+        PROJECT_DIR / "outputs/figures/capacity_cost_boxplots.svg", bbox_inches="tight"
+    )
 
 
-def ashp_archetypes_boxplot(df, variable):
+def ashp_archetypes_boxplot(df, factor):
     """Produce boxplot of ASHP inflation-adjusted installation costs
     for each archetype (only considering data from 2019 onwards).
 
@@ -438,30 +412,30 @@ def ashp_archetypes_boxplot(df, variable):
     df : pandas.DataFrame
         Dataframe containing "year", "tech_type",
         "PROPERTY_TYPE", "BUILT_FORM" and "built_post_1950" variables,
-        as well as the variable specified in the "variable" parameter.
-    variable : str
-        Tested with either "inflated_cost" or "capacity".
+        as well as the variable specified in the "factor" parameter.
+    factor : str
+        Either "inflated_cost" or "capacity".
 
     Return
     ----------
-        No objects returned, but figure is saved as ashp_cost_archetype_boxplots.png
-        if variable is "inflated_cost" and ashp_capacity_archetype_boxplots.png if
-        variable is "capacity".
+        No objects returned, but figure is saved as ashp_cost_archetype_boxplots.svg
+        if factor is "inflated_cost" and ashp_capacity_archetype_boxplots.svg if
+        factor is "capacity".
     """
 
     ashp_data_list = []
 
-    archetype_dict = generate_archetype_dict(df)
+    archetype_list = archetypes(df)
     # off_scale = 0
     # total = 0
 
-    for info in archetype_dict.values():
+    for name, condition in archetype_list:
         filtered_df = df.loc[
             (df["year"] >= 2019)
             & (df["tech_type"] == "Air Source Heat Pump")
-            & info["condition"]
+            & condition
         ]
-        values = list(filtered_df[variable].dropna())
+        values = list(filtered_df[factor].dropna())
         ashp_data_list.append(values)
         # off_scale += sum([value > 30000 for value in values])
         # total += len(values)
@@ -481,12 +455,12 @@ def ashp_archetypes_boxplot(df, variable):
         },
     )
 
-    if variable == "inflated_cost":
+    if factor == "inflated_cost":
         ax.set_xlim(0, 30000)
         ax.set_xlabel("Inflation-adjusted cost of installation (£2021)")
         ax.set_ylabel("Property type")
         ax.set_title("MCS-certified ASHP installation costs by property type (2019-21)")
-    elif variable == "capacity":
+    elif factor == "capacity":
         ax.set_xlim(0, 30)
         ax.set_xlabel("ASHP capacity")
         ax.set_ylabel("Property type")
@@ -504,21 +478,22 @@ def ashp_archetypes_boxplot(df, variable):
 
     # Add labels to y axis (requires reversing the list as labels are added
     # from bottom to top)
-    plt.setp(ax, yticklabels=[info["name"] for info in archetype_dict.values()][::-1])
+    plt.setp(ax, yticklabels=[name for (name, condition) in archetype_list][::-1])
     plt.tight_layout()
 
-    if variable == "inflated_cost":
-        plt.savefig(PROJECT_DIR / "outputs/figures/ashp_cost_archetype_boxplots.png")
-    elif variable == "capacity":
-        plt.savefig(
-            PROJECT_DIR / "outputs/figures/ashp_capacity_archetype_boxplots.png"
-        )
+    version_name = "cost" if factor == "inflated_cost" else "capacity"
+
+    plt.savefig(
+        PROJECT_DIR
+        / "outputs/figures/ashp_{}_archetype_boxplots.svg".format(version_name),
+        bbox_inches="tight",
+    )
 
 
 # ---------------------------------------------------------------------------------
 
 
-def main(file_path=PROJECT_DIR / "outputs/mcs_epc.csv"):
+def main():
     """Main function: Plots MCS-EPC data.
 
     Parameters
@@ -534,7 +509,7 @@ def main(file_path=PROJECT_DIR / "outputs/mcs_epc.csv"):
     """
 
     print("Loading data...")
-    data = plottable_data(file_path=file_path)
+    data = plottable_data()
     print("Plotting...")
     plot_manufacturer_bar(data)
     plot_median_costs(data)
