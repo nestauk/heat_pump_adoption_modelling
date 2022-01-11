@@ -153,7 +153,31 @@ SUPERVISED_MODEL_FIG_PATH = str(PROJECT_DIR) + config["SUPERVISED_MODEL_FIG_PATH
 def select_samples_by_postcode_completeness(
     df, min_samples=5000000, start=250000, interval=1000
 ):
+    """Select a subset of samples with a minimal number of samples,
+    including all samples for each unique postcode.
+    This is done by increasing the number of postcodes and adding up the samples.
 
+    Parameters
+    ----------
+    df: pandas.Dataframe
+        Dataframe that includes the samples from which to select subet.
+
+    min_samples: int, default=5000000
+        Number of minimal samples, stop after reaching this number.
+
+    start: int, default=25000
+        Start with this number of postcodes.
+
+    interval: int, default=1000
+        The interval by which to increase number of postcodes every iteration.
+
+    Return
+    ---------
+    df_reduced : pandas.Dataframe
+        Subset of original dataframe
+        with minimal number of samples and complete postcodes."""
+
+    # Iterate over batches of postcodes and add up samples
     for i in range(start, min_samples, interval):
         grouped_by = (
             df.groupby("POSTCODE")
@@ -163,14 +187,29 @@ def select_samples_by_postcode_completeness(
         )
         n_samples = grouped_by["count"].sum()
 
+        # If minimal number of samples is reached, get all samples for
+        # selected postcodes.
         if n_samples > min_samples:
             sample_ids = list(grouped_by["POSTCODE"])
             df_reduced = df.loc[df["POSTCODE"].isin(sample_ids)]
             return df_reduced
 
 
-def merge_epc_with_mcs(epc_df):
+def get_mcs_install_dates(epc_df):
+    """Get MCS install dates and them to the EPC data.
 
+    Parameters
+    ----------
+    epc_df : pandas.DataFrame
+        EPC dataset.
+
+
+    Return
+    ---------
+    epc_df : pandas.DataFrame:
+        EPC dataset with added MCS install dates."""
+
+    # Get original address from EPC
     epc_df["original_address"] = (
         epc_df["ADDRESS1"] + epc_df["ADDRESS2"] + epc_df["POSTCODE"]
     )
@@ -181,11 +220,13 @@ def merge_epc_with_mcs(epc_df):
         .replace(r"\s+", "", regex=True)
     )
 
+    # Load MCS data
     mcs_data = pd.read_csv(
         MERGED_MCS_EPC,
         usecols=["date", "tech_type", "original_address"],
     )
 
+    # Get original EPC address from MCS/EPC match
     mcs_data = mcs_data.loc[~mcs_data["original_address"].isna()]
     mcs_data["original_address"] = (
         mcs_data["original_address"]
@@ -193,7 +234,11 @@ def merge_epc_with_mcs(epc_df):
         .str.lower()
         .replace(r"\s+", "", regex=True)
     )
+
+    # Rename columns
     mcs_data.columns = ["HP_INSTALL_DATE", "Type of HP", "original_address"]
+
+    # Get the MCS install dates
     mcs_data["HP_INSTALL_DATE"] = (
         mcs_data["HP_INSTALL_DATE"]
         .str.strip()
@@ -202,16 +247,32 @@ def merge_epc_with_mcs(epc_df):
         .astype("float")
     )
 
+    # Create a date dict from MCS data and apply to EPC data
+    # If no install date is found for address, it assigns NaN
     date_dict = mcs_data.set_index("original_address").to_dict()["HP_INSTALL_DATE"]
     epc_df["HP_INSTALL_DATE"] = epc_df["original_address"].map(date_dict)
 
     return epc_df
 
 
-def add_mcs_install_dates(df):
+def manage_hp_install_dates(df):
+    """Manage heat pump install dates given by EPC and MCS.
 
-    df = merge_epc_with_mcs(df)
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Dataframe with EPC data and MCS install dates.
 
+
+    Return
+    ---------
+    df : pandas.DataFrame:
+        Dataframe with updated install dates."""
+
+    # Get the MCS install dates for EPC properties
+    df = get_mcs_install_dates(df)
+
+    # Get the first heat pump mention for each property
     first_hp_mention = (
         df.loc[df["HP_INSTALLED"] == True]
         .groupby("BUILDING_ID")
@@ -221,6 +282,7 @@ def add_mcs_install_dates(df):
     first_hp_mention.columns = ["FIRST_HP_MENTION", "BUILDING_ID"]
     df = pd.merge(df, first_hp_mention, on="BUILDING_ID", how="outer")
 
+    # Get inspection, install and fist mention years
     df["INSPECTION_YEAR"] = round(df["INSPECTION_DATE_AS_NUM"] / 10000.0)
     df["HP_INSTALL_YEAR"] = round(df["HP_INSTALL_DATE"] / 10000.0)
     df["FIRST_HP_MENTION_YEAR"] = round(df["FIRST_HP_MENTION"] / 10000.0)
@@ -231,24 +293,28 @@ def add_mcs_install_dates(df):
     # If no first mention of HP, then set has
     df["HAS_HP_AT_SOME_POINT"] = np.where(df["FIRST_HP_MENTION"].isna(), False, True)
 
-    mcs_available = df["MCS_AVAILABLE"] == True
+    # HP entry conditions
     no_mcs_or_epc = (~df["MCS_AVAILABLE"]) & (df["HP_INSTALLED"] == False)
     no_mcs_but_epc_hp = (~df["MCS_AVAILABLE"]) & (df["HP_INSTALLED"] == True)
     mcs_and_epc_hp = (df["MCS_AVAILABLE"]) & (df["HP_INSTALLED"] == True)
     no_epc_but_mcs_hp = (df["MCS_AVAILABLE"]) & (df["HP_INSTALLED"] == False)
     either_hp = (df["MCS_AVAILABLE"]) | (df["HP_INSTALLED"] == True)
 
+    # Was inspection year before/after/same year as install year?
     epc_entry_before_mcs = df["INSPECTION_YEAR"] < df["HP_INSTALL_YEAR"]
     mcs_before_epc_entry = df["INSPECTION_YEAR"] > df["HP_INSTALL_YEAR"]
     epc_entry_same_as_mcs = df["INSPECTION_YEAR"] == df["HP_INSTALL_YEAR"]
 
     # -----
     # NO MCS/EPC HP entry
+    # No heat pump, no install date
     df["HP_INSTALLED"] = np.where((no_mcs_or_epc), False, df["HP_INSTALLED"])
     df["HP_INSTALL_DATE"] = np.where((no_mcs_or_epc), np.nan, df["HP_INSTALL_DATE"])
 
     # -----
-    # No MCS entry but EPC HP
+    # No MCS entry but EPC HP entry:
+    # Heat pump: yes
+    # Install date: first HP mention
     df["HP_INSTALLED"] = np.where((no_mcs_but_epc_hp), True, df["HP_INSTALLED"])
     df["HP_INSTALL_DATE"] = np.where(
         (no_mcs_but_epc_hp), df["FIRST_HP_MENTION"], df["HP_INSTALL_DATE"]
@@ -256,6 +322,8 @@ def add_mcs_install_dates(df):
 
     # -----
     # MCS and EPC HP entry
+    # Heat pump: yes
+    # Install date: first HP mention or MCS install date, earlier of the two
     df["HP_INSTALLED"] = np.where((mcs_and_epc_hp), True, df["HP_INSTALLED"])
     df["HP_INSTALL_DATE"] = np.where(
         (mcs_and_epc_hp),
@@ -264,7 +332,8 @@ def add_mcs_install_dates(df):
     )
     # -----
     # MCS but no EPC HP, with same year EPC entry
-    # No need to chnage HP Install Date
+    # Heat pump: yes
+    # Install date: no need to chnage HP Install Date
 
     df["HP_INSTALLED"] = np.where(
         (no_epc_but_mcs_hp & epc_entry_same_as_mcs), True, df["HP_INSTALLED"]
@@ -283,7 +352,8 @@ def add_mcs_install_dates(df):
 
     # ---
     # MCS but EPC HP with MCS after EPC entry
-    # Set current instance to no heat pump but duplicate with MCS install date if no future EPC HP mention
+    # Set current instance to no heat pump
+    # but create duplicate with MCS install date if no future EPC HP mention
 
     df["HP_INSTALLED"] = np.where(
         (no_epc_but_mcs_hp & epc_entry_before_mcs), False, df["HP_INSTALLED"]
@@ -292,11 +362,13 @@ def add_mcs_install_dates(df):
         (no_epc_but_mcs_hp & epc_entry_before_mcs), np.nan, df["HP_INSTALL_DATE"]
     )
 
-    # Get samples for which there is no future EPC HP mention and duplicate with MCS install data
+    # Get samples for which there is no future EPC HP mention
+    # and create duplicate with MCS install data
     no_future_hp_entry = df[
         no_epc_but_mcs_hp & epc_entry_before_mcs & (df["HAS_HP_AT_SOME_POINT"] == False)
     ].copy()
 
+    # Update heat pump data and add newly created entries to other data
     no_future_hp_entry["HP_INSTALLED"] = True
     no_future_hp_entry["HAS_HP_AT_SOME_POINT"] == True
 
@@ -312,7 +384,34 @@ def get_aggregated_temp_data(
     postcode_level="POSTCODE_UNIT",
     drop_features=[],
 ):
+    """Get aggregated data for source and target year data
+    and derive target variables HP coverage and growth.
 
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Dataframe with EPC data and MCS install dates.
+
+    source_year : int
+        Use data up to source year for training.
+
+    target_year : int
+        Use target variables derived
+        from data up to target year as ground truths.
+
+    postcode_level : str, default="POSTCODE_UNIT"
+        Postcode level on which to agglomerate features.
+
+    drop_features : list, default=[]
+        Features to discard.
+
+
+    Return
+    ---------
+    source_year : pandas.DataFrame:
+        Source year with added target variables from target year."""
+
+    # Set the postcode levels
     postcode_levels = [
         "POSTCODE_AREA",
         "POSTCODE_DISTRICT",
@@ -321,11 +420,12 @@ def get_aggregated_temp_data(
         "POSTCODE",
     ]
 
+    # Add unnecessary postcode levels to drop features
     drop_features += [
         postcode for postcode in postcode_levels if postcode != postcode_level
     ]
 
-    # Get data for t and t+1
+    # Get data for data up to t (source year) and t+1 (target year)
     source_year = feature_engineering.filter_by_year(
         df, "BUILDING_ID", source_year, selection="latest entry", up_to=True
     )
@@ -346,6 +446,7 @@ def get_aggregated_temp_data(
         df, source_year, target_year, postcode_level, normalise="total"
     )
 
+    # Drop the variable HP_INSTALLED as it is no longer relevant
     source_year.drop(columns=["HP_INSTALLED"], inplace=True)
 
     # Merge with target variables
@@ -367,27 +468,52 @@ def get_aggregated_temp_data(
 
 
 def epc_sample_loading(subset="5m", preload=True):
+    """Load respective subset of EPC samples.
 
+    Parameters
+    ----------
+    subset : str, default='5m'
+        Subset name of EPC dataset.
+        '5m' : 5 million samples
+        'complete' : complete set of samples of ~21 million samples
+
+    preload : boolean, default=True
+        Whether or not to load the 5m samples from file.
+
+    Return
+    ---------
+    epc_df : pandas.DataFrame:
+        Respective subset of EPC dataset."""
+
+    # Load the complete EPC set
     if subset == "complete":
 
         epc_df = epc_data.load_preprocessed_epc_data(
             version="preprocessed", usecols=None
         )
+
+    # Load only 5 million samples
     elif subset == "5m":
 
         if preload:
             epc_df = pd.read_csv(
                 SUPERVISED_MODEL_OUTPUT + "epc_df_5m.csv", dtype=dtypes
             )
+
+        # Select a subset of at least 5m samples keeping postcodes complete
         else:
 
+            # Load full set
             epc_df = epc_data.load_preprocessed_epc_data(
                 version="preprocessed", usecols=None
             )
+
+            # Reduce to fewer samples based on postcode completeness
             epc_df = select_samples_by_postcode_completeness(
                 epc_df, min_sampels=5000000
             )
 
+            # Save output
             epc_df.to_csv(SUPERVISED_MODEL_OUTPUT + "epc_df_5m.csv")
     else:
         raise IOError("Subset '{}' is not defined.".format(subset))
@@ -396,7 +522,19 @@ def epc_sample_loading(subset="5m", preload=True):
 
 
 def feature_encoding_for_hp_status(epc_df):
+    """Feature encode the EPC dataset for the HP status predictions.
 
+    Parameters
+    ----------
+    epc_df : pandas.Dataframe
+        EPC dataset with unencoded features.
+
+    Return
+    ---------
+    epc_df : pandas.DataFrame:
+        Encoded EPC dataset."""
+
+    # Encode EPC features
     epc_df = feature_encoding.feature_encoding_pipeline(
         epc_df,
         ordinal_features,
@@ -414,12 +552,24 @@ def feature_encoding_for_hp_status(epc_df):
         drop_features=drop_features,
     )
 
+    # Save encoded features
     epc_df.to_csv(SUPERVISED_MODEL_OUTPUT + "epc_df_encoded.csv")
 
     return epc_df
 
 
 def data_preprocessing(epc_df, encode_features=False, verbose=True):
+    """Load EPC and MCS data, fix heat pump install dates, encode features.
+
+    Parameters
+    ----------
+    epc_df : pandas.Dataframe
+        Unprocessed EPC dataset.
+
+    Return
+    ---------
+    epc_df : pandas.DataFrame:
+        Accordingly preprocessed EPC dataset."""
 
     FIGPATH = SUPERVISED_MODEL_FIG_PATH
 
@@ -429,10 +579,12 @@ def data_preprocessing(epc_df, encode_features=False, verbose=True):
         imd_df, epc_df, postcode_label="POSTCODE"
     )
 
-    epc_df = add_mcs_install_dates(epc_df)
+    # Fix the HP install dates and add different postcode levels
+    epc_df = manage_hp_install_dates(epc_df)
     epc_df = data_aggregation.get_postcode_levels(epc_df)
     epc_df.to_csv(SUPERVISED_MODEL_OUTPUT + "epc_df_preprocessed.csv")
 
+    # Feature encoding
     if encode_features:
 
         print("encoding")
@@ -461,31 +613,35 @@ def data_preprocessing(epc_df, encode_features=False, verbose=True):
 
 def main():
 
+    # Loading the data and preprocessing
+    # =================================================
+
     # epc_df = epc_sample_loading(subset="5m", preload=True)
     # epc_df = data_preprocessing(epc_df, encode_features=True)
 
+    # Equivalent to:
     epc_df = pd.read_csv(SUPERVISED_MODEL_OUTPUT + "epc_df_preprocessed.csv")
 
-    epc_df = feature_encoding.feature_encoding_pipeline(
-        epc_df,
-        ordinal_features,
-        reduce_categories=True,
-        onehot_features="auto",
-        unaltered_features=[
-            "POSTCODE",
-            "POSTCODE_DISTRICT",
-            "POSTCODE_SECTOR",
-            "POSTCODE_UNIT",
-            "HP_INSTALLED",
-            "N_ENTRIES_BUILD_ID",
-            "POSTCODE_AREA",
-        ],
-        drop_features=drop_features,
+    # Encoding features for Household HP Status
+    # =================================================
+
+    # epc_df = data_preprocessing.feature_encoding_for_hp_status(epc_df)
+
+    # Equivalent to:
+    epc_df = pd.read_csv(SUPERVISED_MODEL_OUTPUT + "epc_df_encoded.csv")
+
+    # Aggregating and encoding features for Area HP Growth
+    # =================================================
+    epc_df = pd.read_csv(
+        data_preprocessing.SUPERVISED_MODEL_OUTPUT + "epc_df_preprocessed.csv"
     )
 
-    epc_df.to_csv(SUPERVISED_MODEL_OUTPUT + "epc_df_encoded.csv")
+    drop_features = ["HP_INSTALL_DATE"]
+    postcode_level = "POSTCODE_UNIT"
 
-    # aggr_temp = get_aggregated_temp_data(2015, 2018, "POSTCODE_UNIT")
+    aggr_temp = data_preprocessing.get_aggregated_temp_data(
+        epc_df, 2015, 2018, postcode_level, drop_features=drop_features
+    )
 
 
 if __name__ == "__main__":

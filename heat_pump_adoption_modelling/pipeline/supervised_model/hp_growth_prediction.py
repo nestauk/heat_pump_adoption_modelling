@@ -2,7 +2,7 @@ from heat_pump_adoption_modelling import PROJECT_DIR, get_yaml_config, Path
 from pandas.core.frame import DataFrame
 from scipy.sparse import data
 from sklearn.model_selection import GridSearchCV
-
+import re
 
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
@@ -14,7 +14,6 @@ import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import GridSearchCV
 
 
@@ -42,8 +41,8 @@ FIG_PATH = PROJECT_DIR / config["SUPERVISED_MODEL_FIG_PATH"]
 SUPERVISED_MODEL_OUTPUT = str(PROJECT_DIR) + config["SUPERVISED_MODEL_OUTPUT"]
 
 model_dict = {
-    #  "SVM Regressor": svm.SVR(),
     "Random Forest Regressor": RandomForestRegressor(),
+    #  "SVM Regressor": svm.SVR(),
     #  "Linear Regression": LinearRegression(),
     #   "Decision Tree Regressor": DecisionTreeRegressor(),
 }
@@ -68,24 +67,66 @@ def train_and_evaluate(
     perc_interval=5,
     cv=5,
 ):
+    """Train and evaluate growth prediction model.
+
+    Parameters
+    ----------
+    model_name: str
+        Model to train and evaluate.
+
+    X_train: np.array
+        Training data.
+
+    y_train: np.array
+        Solutions for training data.
+
+    X_test: np.array
+        Test data.
+
+    y_test: np.array
+        Solutions for test data.
+
+    target_variable : str
+        Target variable to predict,
+        e.g. HP_COVERAGE_FUTURE, GROWTH
+
+    feature_names: list
+        Feature names for training features.
+
+    perc_interval : int, default=5
+        Percentage intervals for creating confusion matrix
+        and estimate accuracy.
+
+    cv : int, default=5
+        Cross validation, by default 5-fold.
+
+    Return
+    ---------
+    model : sklearn model
+        Trained model."""
 
     model = model_dict[model_name]
     # model.set_params(**best_params[model_name])
+
     model.fit(X_train, y_train)
 
+    # Predict training and test set
     pred_train = model.predict(X_train)
     pred_test = model.predict(X_test)
 
     print("\n*****************\nModel Name: {}\n*****************".format(model_name))
 
+    # Set the full target variable name
     variable_name = (
         "Target Year HP Coverage"
         if target_variable == "HP_COVERAGE_FUTURE"
         else "Growth"
     )
 
+    # For each set, evaluate performance
     for set_name in ["train", "test"]:
 
+        # Get training or test data
         if set_name == "train":
             preds = pred_train
             sols = y_train
@@ -99,13 +140,16 @@ def train_and_evaluate(
         print("\n-----------------\n{}\n-----------------".format(set_name))
         print()
 
+        # Fix below zero and above one values
         preds[preds < 0] = 0.0
         preds[preds > 1.0] = 1.0
 
+        # Map prediction to percentage bin
         predictions, solutions, label_dict = plotting_utils.map_percentage_to_bin(
             preds, sols, interval=perc_interval
         )
 
+        # How many predictions are correct according to percentage bin
         overlap = round((predictions == solutions).sum() / predictions.shape[0], 2)
         print("Category Accuracy with {}% steps : {}".format(perc_interval, overlap))
 
@@ -119,6 +163,7 @@ def train_and_evaluate(
             ),
         )
 
+        # Plot prediction by ground truth
         plotting_utils.scatter_plot(
             preds,
             sols,
@@ -127,6 +172,7 @@ def train_and_evaluate(
             "Ground Truth",
         )
 
+        # Get, print and plot the scores
         scores = cross_val_score(
             model, X_train, y_train, cv=cv, scoring="neg_mean_squared_error"
         )
@@ -142,6 +188,7 @@ def train_and_evaluate(
             "Ground Truth",
         )
 
+        # Print and save the decision tree
         if model_name == "Decision Tree Regressor" and set_name == "Training Set":
 
             tree.plot_tree(model, feature_names=feature_names, label="all")
@@ -153,18 +200,38 @@ def train_and_evaluate(
 
 
 def get_data_with_labels(df, target_variables, drop_features=[]):
+    """Get the training data and labels (X, y) for training the models.
 
+    Parameters
+    ----------
+    df: pandas.DataFrame
+        Dataframe with features.
+
+    target_variables: list
+        List of target variables.
+
+    drop_features : list, default=[]
+        Features to discard.
+
+    Return
+    ---------
+    X : pandas.Dataframe
+        Training data.
+
+    y : pandas.Dataframe
+        Labels / ground truth."""
+
+    # Get the
     X = df.copy()
-    # y = np.array(X[target_variables])
-    y = X[target_variables]
+    y = X[target_variables]  # np.array(X[target_variables])
 
+    # Remove unnecessary features
     for col in target_variables + drop_features:
         if col in X.columns:
             del X[col]
 
-    print(X.shape)
+    # Just in case, remove features with all NaN values
     X = X.dropna(axis="columns", how="all")
-    print(X.shape)
 
     return X, y
 
@@ -172,17 +239,47 @@ def get_data_with_labels(df, target_variables, drop_features=[]):
 def predict_hp_growth_for_area(
     X, y, target_variables=["GROWTH", "HP_COVERAGE_FUTURE"], save_predictions=False
 ):
+    """Predict the heat pump growth for area.
 
+    Parameters
+    ----------
+    X: pandas.DataFrame
+        Training data.
+
+    y: pandas.DataFrame
+        Labels / ground truth.
+
+    target_variables : list, default="GROWTH", "HP_COVERAGE_FUTURE"]
+        Target variables to predict.
+
+    save_predictions : boolean, default=False
+        Save the predictions, errors and other information for error analysis.
+
+    Return: None"""
+
+    # Reset indices and create new index row
+    X.reset_index(drop=True, inplace=True)
+    indices = np.arange(X.shape[0])
+    X["index"] = np.arange(X.shape[0])
+
+    # Save original training data (with all columns, e.g. POSTCODE, target variables)
+    if save_predictions:
+        data_with_label_and_pred = X.copy()
+
+    # Remove unnecessary columns
+    for feat in X.columns:
+        if feat.startswith("POSTCODE"):
+            del X[feat]
+
+    # Get feature names
+    feature_names = X.columns
+
+    # Print the number of samples and features
     print("Number of samples:", X.shape[0])
     print("Number of features:", X.shape[1])
     print()
 
-    feature_names = X.columns
-
-    X.reset_index(inplace=True)
-
-    indices = np.arange(X.shape[0])
-
+    # Apply preprocesisng pipeline
     X_prep = prepr_pipeline.fit_transform(X)
 
     # Split into train and test sets
@@ -195,25 +292,22 @@ def predict_hp_growth_for_area(
         indices_test,
     ) = train_test_split(X_prep, y, indices, test_size=0.1, random_state=42)
 
+    # Mark training samples
     X.at[indices_train, "training set"] = True
 
     if save_predictions:
-        original_df = X.copy()
-        original_df.reset_index(inplace=True)
+        data_with_label_and_pred["training set"] = False
+        data_with_label_and_pred.at[indices_train, "training set"] = True
 
-        original_df["training set"] = False
-        original_df.at[indices_train, "training set"] = True
-
+    # For each model and target variable, train, make predictions and evaluate
     for model in model_dict.keys():
-
-        if save_predictions:
-            data_with_label_and_pred = original_df.copy()
-
         for target in target_variables:
 
+            # Get respective labels / ground truths
             y_train_target = np.array(y_train[target])
             y_test_target = np.array(y_test[target])
 
+            # Train and evluate the model
             trained_model = train_and_evaluate(
                 model,
                 X_train,
@@ -224,11 +318,12 @@ def predict_hp_growth_for_area(
                 feature_names,
             )
 
+            # Save predictions, errors and ground truths for later error analysis
             if save_predictions:
 
                 predictions = trained_model.predict(X_prep)
 
-                data_with_label_and_pred[target] = y[target]  # np.array(y[target])
+                data_with_label_and_pred[target] = np.array(y[target])
                 data_with_label_and_pred[target + ": prediction"] = predictions
                 data_with_label_and_pred[target + ": error"] = abs(
                     data_with_label_and_pred[target + ": prediction"]
@@ -237,6 +332,7 @@ def predict_hp_growth_for_area(
 
         if save_predictions:
 
+            model = re.sub(" ", "_", model)
             output_filename = "Predictions_with_{}.csv".format(model)
 
             print(
@@ -245,6 +341,8 @@ def predict_hp_growth_for_area(
 
             data_with_label_and_pred.to_csv(SUPERVISED_MODEL_OUTPUT + output_filename)
 
+
+# Parameter screening grid dict
 
 param_grid_dict = {
     "Random Forest Regressor": {
@@ -271,14 +369,38 @@ param_grid_dict = {
 }
 
 
-def parameter_screening(model_name, X, y):
+def parameter_screening(model_name, X, y, score):
+    """Screen paramters for supervised learning models
+    and print best combiantion.
 
+    Parameters
+    ----------
+    model_name : str
+        Supervised learning model to use.
+
+    X : pandas.Dataframe
+        Training data.
+
+    y : pandas.DataFrame
+        Label / ground truth.
+
+    score : sklearn.Score
+        Score or error by which to evaluate and optimise parameters.
+
+
+    Return: None
+    """
+
+    # Get model and parameter dictionary
     model = model_dict[model_name]
     param_grid = param_grid_dict[model_name]
 
+    # Apply grid search for finding the best parameters
     grid_search = GridSearchCV(
         model, param_grid, cv=3, scoring="neg_mean_squared_error"
     )
+
+    # Fit the model and find best parameters
     grid_search.fit(X, y)
     print(model_name)
     print(grid_search.best_params_)
