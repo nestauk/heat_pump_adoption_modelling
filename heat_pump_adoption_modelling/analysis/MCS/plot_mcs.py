@@ -83,6 +83,8 @@ def plottable_data(file_path=MERGED_PATH):
     mcs_epc["built_post_1950"] = mcs_epc["CONSTRUCTION_AGE_BAND"].map(ages_dict)
     mcs_epc["built_pre_1950"] = ~mcs_epc["built_post_1950"].astype("boolean")
 
+    mcs_epc = mcs_epc.loc[mcs_epc.n_certificates == 1]
+
     return mcs_epc
 
 

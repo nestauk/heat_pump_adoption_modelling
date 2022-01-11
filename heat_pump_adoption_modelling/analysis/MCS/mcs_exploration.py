@@ -20,8 +20,8 @@ import pandas as pd
 import numpy as np
 import datetime as dt
 
-from heat_pump_adoption_modelling.pipeline.load_mcs import load_domestic_hps
-from heat_pump_adoption_modelling.pipeline.mcs_epc_joining import (
+from heat_pump_adoption_modelling.getters.load_mcs import load_domestic_hps
+from heat_pump_adoption_modelling.pipeline.preprocessing.mcs_epc_joining import (
     prepare_dhps,
     prepare_epcs,
     form_matching,
