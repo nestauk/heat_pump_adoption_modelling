@@ -43,6 +43,8 @@ from ipywidgets import interact
 
 import matplotlib as mpl
 
+from keplergl import KeplerGl
+
 mpl.rcParams.update(mpl.rcParamsDefault)
 
 # %%
@@ -62,9 +64,12 @@ aggr_temp = data_preprocessing.get_aggregated_temp_data(
 
 # %%
 X, y = hp_growth_prediction.get_data_with_labels(
-    aggr_temp, ["GROWTH", "HP_COVERAGE_FUTURE"], drop_features=[postcode_level]
+    aggr_temp, ["GROWTH", "HP_COVERAGE_FUTURE"], drop_features=[]
 )
 
+X.head()
+
+# %%
 model = hp_growth_prediction.predict_hp_growth_for_area(X, y, save_predictions=True)
 
 # %%
@@ -77,7 +82,7 @@ df = pd.read_csv(
 df.head()
 
 # %%
-df["training set"].value_counts(dropna=False)
+df["HP_COVERAGE_FUTURE"].value_counts(dropna=False)
 
 # %%
 df["No growth"] = df["HP_COVERAGE_FUTURE"] == 0.0
@@ -144,3 +149,78 @@ def value_counts(feature):
 
 
 # %%
+### Kepler
+
+# %%
+kepler_df = df.rename(
+    columns={"POSTCODE_UNIT": "POSTCODE", "POSTCODE_UNIT_TOTAL": "POSTCODE TOTAL"}
+)
+kepler_df = feature_engineering.get_postcode_coordinates(kepler_df)
+
+kepler_df["zero"] = kepler_df["HP_COVERAGE_FUTURE"] == 0.0
+
+kepler_df.head()
+
+# %%
+config = kepler_config.get_config(KEPLER_PATH + "coverage")
+
+temp_model_map_coverage = KeplerGl(height=500)  # , config=config)
+
+temp_model_map_coverage.add_data(
+    data=epc_df[
+        [
+            "LONGITUDE",
+            "LATITUDE",
+            "coverage prediction",
+            "coverage error",
+            "coverage at time t",
+            "coverage ground truth",  # "HP_COVERAGE_CURRENT",
+            "POSTCODE TOTAL",
+            "# Properties",
+            "train_set",
+            "zero",
+            "POSTCODE",
+        ]
+    ],
+    name="coverage",
+)
+
+temp_model_map_coverage
+
+# %%
+# config = kepler_config.get_config("growth")
+
+kepler_config.save_config(temp_model_map_coverage, KEPLER_PATH + "coverage")
+
+temp_model_map_coverage.save_to_html(file_name=KEPLER_PATH + +"Coverage.html")
+
+# %%
+config = kepler_config.get_config(KEPLER_PATH + "growth")
+
+temp_model_map_growth = KeplerGl(height=500, config=config)
+
+temp_model_map_growth.add_data(
+    data=epc_df[
+        [
+            "LONGITUDE",
+            "LATITUDE",
+            "growth prediction",
+            "growth error",
+            "growth ground truth",  # "HP_COVERAGE_CURRENT",
+            "POSTCODE_UNIT_TOTAL",
+            "train_set",
+            "zero",
+            "POSTCODE",
+        ]
+    ],
+    name="growth",
+)
+
+temp_model_map_growth
+
+# %%
+# config = kepler_config.get_config("growth")
+
+kepler_config.save_config(temp_model_map_growth, "growth")
+
+temp_model_map_growth.save_to_html(file_name=KEPLER_PATH + +"Growth.html")

@@ -38,6 +38,7 @@ from heat_pump_adoption_modelling.pipeline.encoding import (
     category_reduction,
 )
 
+
 import pandas as pd
 import matplotlib as mpl
 
@@ -47,8 +48,8 @@ from ipywidgets import interact
 
 
 # %%
-epc_df = data_preprocessing.epc_sample_loading(subset="5m", preload=True)
-epc_df = data_preprocessing.data_preprocessing(epc_df, encode_features=False)
+# epc_df = data_preprocessing.epc_sample_loading(subset="5m", preload=True)
+# epc_df = data_preprocessing.data_preprocessing(epc_df, encode_features=False)
 
 epc_df = pd.read_csv(
     data_preprocessing.SUPERVISED_MODEL_OUTPUT + "epc_df_preprocessed.csv"
@@ -57,7 +58,7 @@ epc_df = data_preprocessing.feature_encoding_for_hp_status(epc_df)
 
 # %%
 drop_features = [
-    "POSTCODE",
+    # "POSTCODE",
     "POSTCODE_AREA",
     "POSTCODE_DISTRICT",
     "POSTCODE_SECTOR",
@@ -68,6 +69,10 @@ drop_features = [
 X, y = hp_status_prediction.get_data_with_labels(
     epc_df, version="Future HP Status", drop_features=drop_features, balanced_set=True
 )
+
+
+# %%
+X.head()
 
 # %%
 model = hp_status_prediction.predict_heat_pump_status(X, y, save_predictions=True)
@@ -83,7 +88,24 @@ df = pd.read_csv(
 df.head()
 
 # %%
-df[["BUILDING_ID", "TENURE: rental (private)", "proba 1"]].head(20)
+test = df.loc[df["training set"] == False]
+
+social = test["TENURE: rental (social)"] == True
+private = test["TENURE: rental (private)"] == True
+owner_occupied = test["TENURE: owner-occupied"] == True
+high_conf_hp = test["proba 2"] > 0.95
+
+false_positives = (test["prediction"] == True) & (test["ground truth"] == False)
+false_negatives = (test["prediction"] == False) & (test["ground truth"] == True)
+true_positives = (test["prediction"] == True) & (test["ground truth"] == True)
+true_negatives = (test["prediction"] == False) & (test["ground truth"] == False)
+
+print(social.shape)
+print(private.shape)
+print(owner_occupied.shape)
+
+# %%
+test[true_positives & owner_occupied & high_conf_hp]
 
 # %% [markdown]
 # ## Scaling and Dimensionality Reduction
@@ -112,32 +134,5 @@ hp_status_prediction.coefficient_importance(
 hp_status_prediction.coefficient_importance(
     X, y, "Linear Support Vector Classifier", version="Future HP Status", pca=True
 )
-
-# %%
-
-# %%
-# Just some MCS stuff, not important
-
-# %%
-# Load config file
-config = get_yaml_config(
-    Path(str(PROJECT_DIR) + "/heat_pump_adoption_modelling/config/base.yaml")
-)
-
-# Get paths
-MERGED_MCS_EPC = str(PROJECT_DIR) + config["MERGED_MCS_EPC"]
-mcs_data = pd.read_csv(
-    MERGED_MCS_EPC,
-    usecols=["date", "tech_type", "original_address"],
-)
-
-# %%
-mcs_data.shape
-
-# %%
-mcs_data["original_address"].value_counts(dropna=False)
-
-# %%
-mcs_data.loc[~mcs_data["original_address"].isna()].shape
 
 # %%
