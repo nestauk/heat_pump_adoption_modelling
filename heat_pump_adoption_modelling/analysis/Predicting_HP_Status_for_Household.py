@@ -22,12 +22,12 @@ from heat_pump_adoption_modelling import PROJECT_DIR, get_yaml_config, Path
 from heat_pump_adoption_modelling.getters import epc_data, deprivation_data
 
 from heat_pump_adoption_modelling.pipeline.supervised_model import (
-    plotting_utils,
     data_aggregation,
     data_preprocessing,
     hp_growth_prediction,
     hp_status_prediction,
 )
+
 from heat_pump_adoption_modelling.pipeline.preprocessing import (
     data_cleaning,
     feature_engineering,
@@ -38,7 +38,9 @@ from heat_pump_adoption_modelling.pipeline.encoding import (
     category_reduction,
 )
 
-
+from heat_pump_adoption_modellingadoption_modelling.pipeline.supervised_model.utils import (
+    plotting_utils,
+)
 import pandas as pd
 import matplotlib as mpl
 
@@ -48,13 +50,14 @@ from ipywidgets import interact
 
 
 # %%
-# epc_df = data_preprocessing.epc_sample_loading(subset="5m", preload=True)
+# epc_df = data_preprocessing.epc_sample_loading(subset="5m", preload=False)
 # epc_df = data_preprocessing.data_preprocessing(epc_df, encode_features=False)
 
 epc_df = pd.read_csv(
     data_preprocessing.SUPERVISED_MODEL_OUTPUT + "epc_df_preprocessed.csv"
 )
 epc_df = data_preprocessing.feature_encoding_for_hp_status(epc_df)
+epc_df.head()
 
 # %%
 drop_features = [
@@ -80,11 +83,8 @@ model = hp_status_prediction.predict_heat_pump_status(X, y, save_predictions=Tru
 # %%
 df = pd.read_csv(
     hp_status_prediction.SUPERVISED_MODEL_OUTPUT
-    + "Predictions_with_Support Vector Classifier.csv"
+    + "household_based_predictions_with_support_vector_classifier.csv"
 )
-
-# df = pd.read_csv(hp_status_prediction.SUPERVISED_MODEL_OUTPUT + "Predictions_with_Logistic Regression.csv")
-
 df.head()
 
 # %%
@@ -93,7 +93,7 @@ test = df.loc[df["training set"] == False]
 social = test["TENURE: rental (social)"] == True
 private = test["TENURE: rental (private)"] == True
 owner_occupied = test["TENURE: owner-occupied"] == True
-high_conf_hp = test["proba 2"] > 0.95
+high_conf_hp = test["proba 2"] > 0.9
 
 false_positives = (test["prediction"] == True) & (test["ground truth"] == False)
 false_negatives = (test["prediction"] == False) & (test["ground truth"] == True)

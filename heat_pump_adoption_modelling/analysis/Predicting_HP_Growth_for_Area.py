@@ -25,12 +25,16 @@ from heat_pump_adoption_modelling.pipeline.encoding import (
     category_reduction,
 )
 from heat_pump_adoption_modelling.pipeline.supervised_model import (
-    plotting_utils,
     data_aggregation,
     data_preprocessing,
     hp_growth_prediction,
     hp_status_prediction,
+)
+
+from heat_pump_adoption_modelling.pipeline.supervised_model.utils import (
+    plotting_utils,
     error_analysis,
+    kepler,
 )
 from heat_pump_adoption_modelling.pipeline.preprocessing import (
     data_cleaning,
@@ -42,17 +46,21 @@ from heat_pump_adoption_modelling import PROJECT_DIR, get_yaml_config, Path
 from ipywidgets import interact
 
 import matplotlib as mpl
+import pandas as pd
 
 from keplergl import KeplerGl
 
 mpl.rcParams.update(mpl.rcParamsDefault)
 
 # %%
-epc_df = data_preprocessing.epc_sample_loading(subset="5m", preload=True)
-epc_df = data_preprocessing.data_preprocessing(epc_df, encode_features=False)
+# epc_df = data_preprocessing.epc_sample_loading(subset="5m", preload=True)
+# epc_df = data_preprocessing.data_preprocessing(epc_df, encode_features=False)
 
-# %%
+epc_df = pd.read_csv(
+    data_preprocessing.SUPERVISED_MODEL_OUTPUT + "epc_df_preprocessed.csv"
+)
 epc_df = epc_df.drop(columns=data_preprocessing.drop_features)
+epc_df.head()
 
 # %%
 drop_features = ["HP_INSTALL_DATE"]
@@ -73,19 +81,17 @@ X.head()
 model = hp_growth_prediction.predict_hp_growth_for_area(X, y, save_predictions=True)
 
 # %%
-import pandas as pd
-
 df = pd.read_csv(
     hp_growth_prediction.SUPERVISED_MODEL_OUTPUT
-    + "Predictions_with_Random Forest Regressor.csv"
-)
+    + "Predictions_with_Random_Forest_Regressor.csv"
+).drop(columns=["Unnamed: 0"])
 df.head()
 
 # %%
-df["HP_COVERAGE_FUTURE"].value_counts(dropna=False)
+print("POSTCODE_UNIT" in list(df.columns) or "POSTCODE" in list(df.columns))
 
 # %%
-df["No growth"] = df["HP_COVERAGE_FUTURE"] == 0.0
+df["No heat pumps"] = df["HP_COVERAGE_FUTURE"] == 0.0
 
 # %%
 print("HP Coverage Future")
@@ -96,15 +102,6 @@ print()
 print("Growth")
 print("----------------")
 error_analysis.print_prediction_and_error(df, "GROWTH")
-
-# %%
-# df['coverage ground truth int'] = round(df['coverage ground truth']*100,0)
-# df['coverage prediction int'] = round(df['coverage prediction']*100,0)
-# df['coverage error int'] = round(df['coverage error']*100,0)
-
-# df['growth ground truth int'] = round(df['growth ground truth']*100,0)
-# df['growth prediction int'] = round(df['growth prediction']*100,0)
-# df['growth error int'] = round(df['growth error']*100,0)
 
 # %%
 df = error_analysis.decode_tenure(df)
@@ -139,7 +136,7 @@ postcode = "CM07FY"
 @interact(feature=df.columns)
 def value_counts(feature):
 
-    sample_x = df.loc[df["POSTCODE"] == postcode]
+    sample_x = df.loc[df["POSTCODE_UNIT"] == postcode]
     print(feature)
     print(sample_x[feature].value_counts(dropna=False))
 
@@ -148,37 +145,50 @@ def value_counts(feature):
     print(sample_x[feature].min())
 
 
-# %%
-### Kepler
+# %% [markdown]
+# ### Kepler
 
 # %%
 kepler_df = df.rename(
-    columns={"POSTCODE_UNIT": "POSTCODE", "POSTCODE_UNIT_TOTAL": "POSTCODE TOTAL"}
+    columns={
+        "POSTCODE_UNIT": "POSTCODE",
+        "POSTCODE_UNIT_TOTAL": "# Properties",
+        "HP_COVERAGE_FUTURE: prediction": "HP Coverage: prediction",
+        "HP_COVERAGE_FUTURE: error": "HP Coverage: error",
+        "HP_COVERAGE_FUTURE": "HP Coverage",
+        "GROWTH: prediction": "Growth: prediction",
+        "GROWTH: error": "Growth: error",
+        "GROWTH": "Growth",
+    }
 )
 kepler_df = feature_engineering.get_postcode_coordinates(kepler_df)
 
-kepler_df["zero"] = kepler_df["HP_COVERAGE_FUTURE"] == 0.0
+kepler_df["HP Coverage: error"] = round(kepler_df["HP Coverage: error"], 3)
+kepler_df["HP Coverage: prediction"] = round(kepler_df["HP Coverage: prediction"], 3)
+kepler_df["HP Coverage"] = round(kepler_df["HP Coverage"], 3)
+
+kepler_df["Growth: error"] = round(kepler_df["Growth"], 3)
+kepler_df["Growth: prediction"] = round(kepler_df["Growth"], 3)
+kepler_df["Growth"] = round(kepler_df["Growth"], 3)
 
 kepler_df.head()
 
 # %%
-config = kepler_config.get_config(KEPLER_PATH + "coverage")
+config = kepler.get_config(kepler.KEPLER_PATH + "coverage.txt")
 
-temp_model_map_coverage = KeplerGl(height=500)  # , config=config)
+temp_model_map_coverage = KeplerGl(height=500, config=config)
 
 temp_model_map_coverage.add_data(
-    data=epc_df[
+    data=kepler_df[
         [
             "LONGITUDE",
             "LATITUDE",
-            "coverage prediction",
-            "coverage error",
-            "coverage at time t",
-            "coverage ground truth",  # "HP_COVERAGE_CURRENT",
-            "POSTCODE TOTAL",
+            "HP Coverage: prediction",
+            "HP Coverage: error",
+            "HP Coverage",
             "# Properties",
-            "train_set",
-            "zero",
+            "training set",
+            "No growth",
             "POSTCODE",
         ]
     ],
@@ -188,39 +198,37 @@ temp_model_map_coverage.add_data(
 temp_model_map_coverage
 
 # %%
-# config = kepler_config.get_config("growth")
+kepler.save_config(temp_model_map_coverage, kepler.KEPLER_PATH + "coverage.txt")
 
-kepler_config.save_config(temp_model_map_coverage, KEPLER_PATH + "coverage")
-
-temp_model_map_coverage.save_to_html(file_name=KEPLER_PATH + +"Coverage.html")
+temp_model_map_coverage.save_to_html(file_name=kepler.KEPLER_PATH + "Coverage.html")
 
 # %%
-config = kepler_config.get_config(KEPLER_PATH + "growth")
+config = kepler.get_config(kepler.KEPLER_PATH + "growth.txt")
 
 temp_model_map_growth = KeplerGl(height=500, config=config)
 
 temp_model_map_growth.add_data(
-    data=epc_df[
+    data=kepler_df[
         [
             "LONGITUDE",
             "LATITUDE",
-            "growth prediction",
-            "growth error",
-            "growth ground truth",  # "HP_COVERAGE_CURRENT",
-            "POSTCODE_UNIT_TOTAL",
-            "train_set",
-            "zero",
+            "Growth: prediction",
+            "Growth: error",
+            "Growth",
+            "# Properties",
+            "training set",
+            "No growth",
             "POSTCODE",
         ]
     ],
-    name="growth",
+    name="coverage",
 )
 
 temp_model_map_growth
 
 # %%
-# config = kepler_config.get_config("growth")
+kepler.save_config(temp_model_map_growth, kepler.KEPLER_PATH + "growth.txt")
 
-kepler_config.save_config(temp_model_map_growth, "growth")
+temp_model_map_growth.save_to_html(file_name=kepler.KEPLER_PATH + "Growth.html")
 
-temp_model_map_growth.save_to_html(file_name=KEPLER_PATH + +"Growth.html")
+# %%
