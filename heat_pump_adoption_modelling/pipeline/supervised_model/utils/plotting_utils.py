@@ -1,3 +1,11 @@
+# File: heat_pump_adoption_modelling/pipeline/supervised_model/utils/plotting_utils.py
+"""
+Predict the HP growth using a supervised learning model.
+"""
+
+# ----------------------------------------------------------------------------------
+
+
 import matplotlib.pyplot as plt
 import numpy as np
 
