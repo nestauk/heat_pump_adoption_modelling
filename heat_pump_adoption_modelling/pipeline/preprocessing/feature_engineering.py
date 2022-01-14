@@ -530,8 +530,14 @@ def get_postcode_coordinates(df):
     df = data_cleaning.reformat_postcode(df)
     postcode_coordinates_df = data_cleaning.reformat_postcode(postcode_coordinates_df)
 
+    postcode_coordinates_df["POSTCODE"] = (
+        postcode_coordinates_df["POSTCODE"].str.upper().str.replace(" ", "")
+    )
+
     # Merge with location data
     df = pd.merge(df, postcode_coordinates_df, on=["POSTCODE"])
+
+    print(df.shape)
 
     return df
 

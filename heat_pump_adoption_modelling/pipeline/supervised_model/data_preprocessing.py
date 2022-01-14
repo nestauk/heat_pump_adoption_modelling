@@ -1,18 +1,24 @@
+# File: heat_pump_adoption_modelling/pipeline/supervised_model/data_preprocessing.py
+"""
+Preprocess EPC and MCS data before feeding it to supervised model.
+"""
+
+# ----------------------------------------------------------------------------------
+
+# Import
+
 from heat_pump_adoption_modelling.getters import epc_data, deprivation_data
-from heat_pump_adoption_modelling import PROJECT_DIR
-
-from heat_pump_adoption_modelling.pipeline.supervised_model import data_aggregation
-from heat_pump_adoption_modelling.pipeline.encoding import (
-    feature_encoding,
-    category_reduction,
-)
-from heat_pump_adoption_modelling.pipeline.preprocessing import feature_engineering
-
 from heat_pump_adoption_modelling import PROJECT_DIR, get_yaml_config, Path
 
+from heat_pump_adoption_modelling.pipeline.supervised_model import data_aggregation
+from heat_pump_adoption_modelling.pipeline.encoding import feature_encoding
+from heat_pump_adoption_modelling.pipeline.preprocessing import feature_engineering
 
 import numpy as np
 import pandas as pd
+
+# ----------------------------------------------------------------------------------
+
 
 ordinal_features = [
     "MAINHEAT_ENERGY_EFF",
@@ -57,7 +63,6 @@ drop_features = [
     "INSPECTION_DATE",
     "MAIN_FUEL",
     "Country",
-    "Unnamed: 0",
     "original_address",
     "FIRST_HP_MENTION",
     "INSPECTION_YEAR",
@@ -68,77 +73,6 @@ drop_features = [
     "HP_TYPE",
 ]
 
-dtypes = {
-    "BUILDING_REFERENCE_NUMBER": int,
-    "ADDRESS1": str,
-    "ADDRESS2": str,
-    "POSTTOWN": str,
-    "POSTCODE": str,
-    "INSPECTION_DATE": str,
-    "LODGEMENT_DATE": str,
-    "ENERGY_CONSUMPTION_CURRENT": float,
-    "TOTAL_FLOOR_AREA": float,
-    "CURRENT_ENERGY_EFFICIENCY": int,
-    "CURRENT_ENERGY_RATING": str,
-    "POTENTIAL_ENERGY_RATING": str,
-    "CO2_EMISS_CURR_PER_FLOOR_AREA": float,
-    "WALLS_ENERGY_EFF": str,
-    "ROOF_ENERGY_EFF": str,
-    "FLOOR_ENERGY_EFF": str,
-    "WINDOWS_ENERGY_EFF": str,
-    "MAINHEAT_DESCRIPTION": str,
-    "MAINHEAT_ENERGY_EFF": str,
-    "MAINHEATC_ENERGY_EFF": str,
-    "SHEATING_ENERGY_EFF": str,
-    "HOT_WATER_ENERGY_EFF": str,
-    "LIGHTING_ENERGY_EFF": str,
-    "CO2_EMISSIONS_CURRENT": float,
-    "HEATING_COST_CURRENT": float,
-    "HEATING_COST_POTENTIAL": float,
-    "HOT_WATER_COST_CURRENT": float,
-    "HOT_WATER_COST_POTENTIAL": float,
-    "LIGHTING_COST_CURRENT": float,
-    "LIGHTING_COST_POTENTIAL": float,
-    "CONSTRUCTION_AGE_BAND": str,
-    "FLOOR_HEIGHT": float,
-    "EXTENSION_COUNT": float,
-    "FLOOR_LEVEL": float,
-    "GLAZED_AREA": float,
-    "NUMBER_HABITABLE_ROOMS": str,
-    "NUMBER_HEATED_ROOMS": str,
-    "LOCAL_AUTHORITY_LABEL": str,
-    "MAINS_GAS_FLAG": str,
-    "MAIN_FUEL": str,
-    "MAIN_HEATING_CONTROLS": float,
-    "MECHANICAL_VENTILATION": str,
-    "ENERGY_TARIFF": str,
-    "MULTI_GLAZE_PROPORTION": float,
-    "GLAZED_TYPE": str,
-    "PHOTO_SUPPLY": float,
-    "SOLAR_WATER_HEATING_FLAG": str,
-    "TENURE": str,
-    "TRANSACTION_TYPE": str,
-    "WIND_TURBINE_COUNT": float,
-    "BUILT_FORM": str,
-    "PROPERTY_TYPE": str,
-    "COUNTRY": str,
-    "CONSTRUCTION_AGE_BAND_ORIGINAL": str,
-    "ENTRY_YEAR": str,
-    "ENTRY_YEAR_INT": float,
-    "INSPECTION_DATE_AS_NUM": int,
-    "UNIQUE_ADDRESS": str,
-    "BUILDING_ID": str,
-    "N_ENTRIES": str,
-    "N_ENTRIES_BUILD_ID": str,
-    "HEATING_SYSTEM": str,
-    "HEATING_FUEL": str,
-    "HP_INSTALLED": bool,
-    "HP_TYPE": str,
-    "CURR_ENERGY_RATING_NUM": float,
-    "ENERGY_RATING_CAT": str,
-    "DIFF_POT_ENERGY_RATING": float,
-}
-
 # Load config file
 config = get_yaml_config(
     Path(str(PROJECT_DIR) + "/heat_pump_adoption_modelling/config/base.yaml")
@@ -148,6 +82,7 @@ config = get_yaml_config(
 MERGED_MCS_EPC = str(PROJECT_DIR) + config["MERGED_MCS_EPC"]
 SUPERVISED_MODEL_OUTPUT = str(PROJECT_DIR) + config["SUPERVISED_MODEL_OUTPUT"]
 SUPERVISED_MODEL_FIG_PATH = str(PROJECT_DIR) + config["SUPERVISED_MODEL_FIG_PATH"]
+dtypes = config["dtypes"]
 
 
 def select_samples_by_postcode_completeness(
@@ -510,11 +445,11 @@ def epc_sample_loading(subset="5m", preload=True):
 
             # Reduce to fewer samples based on postcode completeness
             epc_df = select_samples_by_postcode_completeness(
-                epc_df, min_sampels=5000000
+                epc_df, min_samples=5000000
             )
 
             # Save output
-            epc_df.to_csv(SUPERVISED_MODEL_OUTPUT + "epc_df_5m.csv")
+            epc_df.to_csv(SUPERVISED_MODEL_OUTPUT + "epc_df_5m.csv", index=False)
     else:
         raise IOError("Subset '{}' is not defined.".format(subset))
 
@@ -553,7 +488,7 @@ def feature_encoding_for_hp_status(epc_df):
     )
 
     # Save encoded features
-    epc_df.to_csv(SUPERVISED_MODEL_OUTPUT + "epc_df_encoded.csv")
+    epc_df.to_csv(SUPERVISED_MODEL_OUTPUT + "epc_df_encoded.csv", index=False)
 
     return epc_df
 
@@ -582,7 +517,7 @@ def data_preprocessing(epc_df, encode_features=False, verbose=True):
     # Fix the HP install dates and add different postcode levels
     epc_df = manage_hp_install_dates(epc_df)
     epc_df = data_aggregation.get_postcode_levels(epc_df)
-    epc_df.to_csv(SUPERVISED_MODEL_OUTPUT + "epc_df_preprocessed.csv")
+    epc_df.to_csv(SUPERVISED_MODEL_OUTPUT + "epc_df_preprocessed.csv", index=False)
 
     # Feature encoding
     if encode_features:
@@ -606,7 +541,7 @@ def data_preprocessing(epc_df, encode_features=False, verbose=True):
             drop_features=drop_features,
         )
 
-        epc_df.to_csv(SUPERVISED_MODEL_OUTPUT + "epc_df_encoded.csv")
+        epc_df.to_csv(SUPERVISED_MODEL_OUTPUT + "epc_df_encoded.csv", index=False)
 
     return epc_df
 

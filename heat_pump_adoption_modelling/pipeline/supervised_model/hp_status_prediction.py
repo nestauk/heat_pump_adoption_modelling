@@ -1,11 +1,19 @@
+# File: heat_pump_adoption_modelling/pipeline/supervised_model/hp_status_prediction.py
+"""
+Predict the HP status of a household using a supervised learning model.
+"""
+
+# ----------------------------------------------------------------------------------
+
 from heat_pump_adoption_modelling import PROJECT_DIR, get_yaml_config, Path
 from heat_pump_adoption_modelling.pipeline.preprocessing import feature_engineering
-from heat_pump_adoption_modelling.pipeline.supervised_model import plotting_utils
+from heat_pump_adoption_modelling.pipeline.supervised_model.utils import plotting_utils
 
 import pandas as pd
 import numpy as np
-from sklearn import preprocessing
 from sklearn import svm
+
+import re
 
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
@@ -14,12 +22,10 @@ from sklearn.decomposition import PCA
 
 from sklearn.linear_model import LogisticRegression
 from sklearn.linear_model import SGDClassifier
-from sklearn.model_selection import GridSearchCV
 
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import cross_validate
 from sklearn.metrics import accuracy_score
-from sklearn.linear_model import SGDClassifier
 from sklearn.model_selection import cross_val_score
 
 
@@ -47,15 +53,6 @@ prepr_pipeline_no_pca = Pipeline(
     ]
 )
 
-
-param_grid_dict = {
-    "Linear Support Vector Classifier": {
-        "penalty": ["l2", "l1", "elasticnet"],
-        "alpha": [0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1],
-        "epsilon": [0.0001, 0.0005, 0.001, 0.005, 0.01, 0.1],
-        "tol": [0.00001, 0.00005, 0.0001, 0.0005, 0.001, 0.01, 0.1],
-    }
-}
 
 best_params = {
     "Linear Support Vector Classifier":  # { "alpha": 0.0001,"epsilon": 0.0001,
@@ -365,7 +362,7 @@ def predict_heat_pump_status(
 
     # Save original training data (with all columns, e.g. POSTCODE, target variables)
     if save_predictions:
-        data_with_label_and_pred = X.copy()
+        original_df = X.copy()
 
     # Remove unnecessary columns
     for feat in X.columns:
@@ -391,8 +388,8 @@ def predict_heat_pump_status(
 
     # Mark training samples
     if save_predictions:
-        data_with_label_and_pred["training set"] = False
-        data_with_label_and_pred.at[indices_train, "training set"] = True
+        original_df["training set"] = False
+        original_df.at[indices_train, "training set"] = True
 
     # For each model train, make predictions and evaluate
     for model in model_dict.keys():
@@ -403,6 +400,8 @@ def predict_heat_pump_status(
         trained_models[model] = trained_model
 
         if save_predictions:
+
+            data_with_label_and_pred = original_df.copy()
 
             predictions = trained_model.predict(X_prep)
 
@@ -435,12 +434,16 @@ def predict_heat_pump_status(
                 != data_with_label_and_pred["ground truth"]
             )
 
-            output_filename = "Predictions_with_{}.csv".format(model)
+            output_filename = "household_based_predictions_with_{}.csv".format(
+                re.sub(" ", "_", model).lower()
+            )
 
             print(
                 "Output saved to {}".format(SUPERVISED_MODEL_OUTPUT + output_filename)
             )
-            data_with_label_and_pred.to_csv(SUPERVISED_MODEL_OUTPUT + output_filename)
+            data_with_label_and_pred.to_csv(
+                SUPERVISED_MODEL_OUTPUT + output_filename, index=False
+            )
 
     return trained_models
 
@@ -515,38 +518,3 @@ def coefficient_importance(X, y, model_name, version="Future HP Status", pca=Fal
         "{}: Coefficient Importance {}".format(version, pca_tag),
         X_prep,
     )
-
-
-def parameter_screening(model_name, X, y, score):
-    """Screen paramters for supervised learning models
-    and print best combiantion.
-
-    Parameters
-    ----------
-    model_name : str
-        Supervised learning model to use.
-
-    X : pandas.Dataframe
-        Training data.
-
-    y : pandas.DataFrame
-        Label / ground truth.
-
-    score : sklearn.Score
-        Score or error by which to evaluate and optimise parameters.
-
-
-    Return: None
-    """
-
-    # Get model and parameter dictionary
-    model = model_dict[model_name]
-    param_grid = param_grid_dict[model_name]
-
-    # Apply grid search for finding the best parameters
-    grid_search = GridSearchCV(model, param_grid, cv=3, scoring="f1")
-
-    # Fit the model and find best parameters
-    grid_search.fit(X, y)
-    print(model_name)
-    print(grid_search.best_params_)

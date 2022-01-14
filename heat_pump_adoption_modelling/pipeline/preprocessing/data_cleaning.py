@@ -26,7 +26,7 @@ def reformat_postcode(df):
     df : pandas.Dataframe
         Dataframe with reformatted POSTCODE."""
 
-    df["POSTCODE"] = df["POSTCODE"].str.upper().replace(r" ", "")
+    df["POSTCODE"] = df["POSTCODE"].str.upper().str.replace(r"\s+", "")
 
     return df
 

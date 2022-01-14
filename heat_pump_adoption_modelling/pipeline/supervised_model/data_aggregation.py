@@ -1,8 +1,19 @@
+# File: heat_pump_adoption_modelling/pipeline/supervised_model/data_aggregation.py
+"""
+Aggregating data on postcode level.
+"""
+
+# ----------------------------------------------------------------------------------
+
+# Import
+
 import re
 import pandas as pd
 import numpy as np
 
 from heat_pump_adoption_modelling.pipeline.encoding import feature_encoding
+
+# ----------------------------------------------------------------------------------
 
 
 def split_postcode(postcode):
@@ -224,19 +235,24 @@ def aggreate_categorical_features(df, features, agglo_feature="POSTCODE_UNIT"):
     return aggregated_features
 
 
-def get_feature_count_grouped(df, feature, groupby_f, name=None):
-    """Get the number of feature cateogries by group.
+def get_feature_count_grouped(df, feature, groupby_f, value=True, name=None):
+    """Get the number of specific value of feature when grouped,
+    for instance the number of installed heat pumps (value=True) per postcode level.
 
     Parameters
     ----------
     df: pandas.Dataframe
         Dataframe including features of interest.
 
-    features: str
+    feature: str
         Feature of interest.
 
     groupby_f: str
         Feature to group by, e.g. postcode level.
+
+    value: str, default=True
+        Specific value in given feature to count.
+        By default, set to True since often used with boolean features.
 
     name: str, default=None
         How to rename the feature.
@@ -244,8 +260,8 @@ def get_feature_count_grouped(df, feature, groupby_f, name=None):
 
     Return
     ---------
-    #TODO: desribe better
-    feature_cats_by_agglo_f: pandas.Dataframe"""
+    feature_cats_by_agglo_f: pandas.Dataframe
+        Count of given feature value per group."""
 
     # Set default name
     if name is None:
@@ -257,7 +273,7 @@ def get_feature_count_grouped(df, feature, groupby_f, name=None):
     ).reset_index()
 
     # Rename the column since "True" is not a meaningful name
-    feature_cats_by_agglo_f.rename(columns={True: name}, inplace=True)
+    feature_cats_by_agglo_f.rename(columns={value: name}, inplace=True)
 
     return feature_cats_by_agglo_f[[groupby_f, name]]
 

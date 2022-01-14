@@ -1,7 +1,13 @@
+# File: heat_pump_adoption_modelling/pipeline/supervised_model/hp_growth_prediction.py
+"""
+Predict the HP growth of an area using a supervised learning model.
+"""
+
+# ----------------------------------------------------------------------------------
+
 from heat_pump_adoption_modelling import PROJECT_DIR, get_yaml_config, Path
-from pandas.core.frame import DataFrame
-from scipy.sparse import data
-from sklearn.model_selection import GridSearchCV
+from heat_pump_adoption_modelling.pipeline.supervised_model.utils import plotting_utils
+
 import re
 
 from sklearn.pipeline import Pipeline
@@ -9,28 +15,27 @@ from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
-import matplotlib.pyplot as plt
 
 from sklearn.linear_model import LinearRegression
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import GridSearchCV
-
+from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import SGDClassifier
 
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 from sklearn.model_selection import train_test_split
 from sklearn.decomposition import PCA, TruncatedSVD
 
-from sklearn.linear_model import LinearRegression
-from sklearn.linear_model import LogisticRegression
-from sklearn.linear_model import SGDClassifier
 from sklearn.model_selection import cross_val_score
 from sklearn import tree
 
-from heat_pump_adoption_modelling.pipeline.supervised_model import plotting_utils
+import matplotlib.pyplot as plt
+
 
 import numpy as np
-import pandas as pd
+
+# ----------------------------------------------------------------------------------
 
 # Load config file
 config = get_yaml_config(
@@ -237,7 +242,10 @@ def get_data_with_labels(df, target_variables, drop_features=[]):
 
 
 def predict_hp_growth_for_area(
-    X, y, target_variables=["GROWTH", "HP_COVERAGE_FUTURE"], save_predictions=False
+    X,
+    y,
+    target_variables=["GROWTH", "HP_COVERAGE_FUTURE"],
+    save_predictions=False,
 ):
     """Predict the heat pump growth for area.
 
@@ -264,7 +272,7 @@ def predict_hp_growth_for_area(
 
     # Save original training data (with all columns, e.g. POSTCODE, target variables)
     if save_predictions:
-        data_with_label_and_pred = X.copy()
+        original_df = X.copy()
 
     # Remove unnecessary columns
     for feat in X.columns:
@@ -296,11 +304,15 @@ def predict_hp_growth_for_area(
     X.at[indices_train, "training set"] = True
 
     if save_predictions:
-        data_with_label_and_pred["training set"] = False
-        data_with_label_and_pred.at[indices_train, "training set"] = True
+        original_df["training set"] = False
+        original_df.at[indices_train, "training set"] = True
 
     # For each model and target variable, train, make predictions and evaluate
     for model in model_dict.keys():
+
+        if save_predictions:
+            data_with_label_and_pred = original_df.copy()
+
         for target in target_variables:
 
             # Get respective labels / ground truths
@@ -332,75 +344,15 @@ def predict_hp_growth_for_area(
 
         if save_predictions:
 
-            model = re.sub(" ", "_", model)
-            output_filename = "Predictions_with_{}.csv".format(model)
+            output_filename = "area_based_predictions_with_{}.csv".format(
+                re.sub(" ", "_", model).lower()
+            )
 
             print(
                 "Output saved to {}".format(SUPERVISED_MODEL_OUTPUT + output_filename)
             )
 
-            data_with_label_and_pred.to_csv(SUPERVISED_MODEL_OUTPUT + output_filename)
-
-
-# Parameter screening grid dict
-
-param_grid_dict = {
-    "Random Forest Regressor": {
-        "n_estimators": [10, 15, 20, 25],
-        "max_features": [5, 10, 15, 20, 25, "auto", "sqrt"],
-        "min_samples_leaf": [0.05],
-        "bootstrap": [False],
-    },  # {'bootstrap': False, 'max_features': 10, 'min_samples_leaf': 0.05, 'n_estimators': 20}
-    "SVM Regressor": {
-        "gamma": [0.0001, 0.001, 0.01, 0.1, 1.0, 10],
-        "kernel": ["rbf"],
-        "C": [0.001, 0.01, 0.1, 1, 2, 5, 10, 15, 20],
-    },
-    "Decision Tree Regressor": {
-        "splitter": ["best", "random"],
-        "max_depth": [1, 5, 10, 15],
-        "min_samples_leaf": [0.05],
-        "min_weight_fraction_leaf": [0.05, 0.1, 0.3, 0.5],
-        "max_features": ["auto", "log2", "sqrt", None],
-        "max_leaf_nodes": [None, 5, 10, 15, 20, 30, 50],
-        # {'max_depth': 15, 'max_features': 'auto', 'max_leaf_nodes': 15,
-        #'min_samples_leaf': 0.05, 'min_weight_fraction_leaf': 0.05, 'splitter': 'best'}
-    },
-}
-
-
-def parameter_screening(model_name, X, y, score):
-    """Screen paramters for supervised learning models
-    and print best combiantion.
-
-    Parameters
-    ----------
-    model_name : str
-        Supervised learning model to use.
-
-    X : pandas.Dataframe
-        Training data.
-
-    y : pandas.DataFrame
-        Label / ground truth.
-
-    score : sklearn.Score
-        Score or error by which to evaluate and optimise parameters.
-
-
-    Return: None
-    """
-
-    # Get model and parameter dictionary
-    model = model_dict[model_name]
-    param_grid = param_grid_dict[model_name]
-
-    # Apply grid search for finding the best parameters
-    grid_search = GridSearchCV(
-        model, param_grid, cv=3, scoring="neg_mean_squared_error"
-    )
-
-    # Fit the model and find best parameters
-    grid_search.fit(X, y)
-    print(model_name)
-    print(grid_search.best_params_)
+            print(list(data_with_label_and_pred.columns))
+            data_with_label_and_pred.to_csv(
+                SUPERVISED_MODEL_OUTPUT + output_filename, index=False
+            )
