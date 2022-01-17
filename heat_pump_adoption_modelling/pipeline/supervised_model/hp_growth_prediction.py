@@ -300,9 +300,6 @@ def predict_hp_growth_for_area(
         indices_test,
     ) = train_test_split(X_prep, y, indices, test_size=0.1, random_state=42)
 
-    # Mark training samples
-    X.at[indices_train, "training set"] = True
-
     if save_predictions:
         original_df["training set"] = False
         original_df.at[indices_train, "training set"] = True
@@ -352,7 +349,6 @@ def predict_hp_growth_for_area(
                 "Output saved to {}".format(SUPERVISED_MODEL_OUTPUT + output_filename)
             )
 
-            print(list(data_with_label_and_pred.columns))
             data_with_label_and_pred.to_csv(
                 SUPERVISED_MODEL_OUTPUT + output_filename, index=False
             )

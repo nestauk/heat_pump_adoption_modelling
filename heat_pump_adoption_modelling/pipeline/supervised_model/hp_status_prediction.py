@@ -386,6 +386,9 @@ def predict_heat_pump_status(
         X_prep, y, indices, test_size=0.1, random_state=42, stratify=y
     )
 
+    X["training set"] = False
+    X.at[indices_train, "training set"] = True
+
     # Mark training samples
     if save_predictions:
         original_df["training set"] = False
