@@ -26,7 +26,7 @@ IMD_SCOTLAND_PATH: "/inputs/deprivation_data/Scotland_IMD.csv"
 
 POSTCODE_TO_COORD_PATH: "/inputs/location_data/ukpostcodes_to_coordindates.csv"
 
-MERGED_MCS_EPC: "/outputs/mcs_epc.csv"
+MERGED_MCS_EPC: "/inputs/MCS_data/mcs_epc.csv"
 
 SUPERVISED_MODEL_OUTPUT: "/outputs/supervised_model/"
 SUPERVISED_MODEL_FIG_PATH: "/outputs/supervised_model/figures/"
