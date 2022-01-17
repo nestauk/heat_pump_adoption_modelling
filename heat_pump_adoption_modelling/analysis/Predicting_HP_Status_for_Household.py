@@ -14,6 +14,12 @@
 #     name: heat_pump_adoption_modelling
 # ---
 
+# %% [markdown]
+# # Predicting the Heat Pump Status for Households
+
+# %% [markdown]
+# ### Imports
+
 # %%
 # %load_ext autoreload
 # %autoreload 2
@@ -38,18 +44,21 @@ from heat_pump_adoption_modelling.pipeline.encoding import (
     category_reduction,
 )
 
-from heat_pump_adoption_modellingadoption_modelling.pipeline.supervised_model.utils import (
-    plotting_utils,
-)
+from heat_pump_adoption_modelling.pipeline.supervised_model.utils import plotting_utils
+
 import pandas as pd
+
 import matplotlib as mpl
 
 mpl.rcParams.update(mpl.rcParamsDefault)
 
 from ipywidgets import interact
 
+# %% [markdown]
+# ### Loading, preprocessing and encoding
 
 # %%
+# If preloaded file is not yet available:
 # epc_df = data_preprocessing.epc_sample_loading(subset="5m", preload=False)
 # epc_df = data_preprocessing.data_preprocessing(epc_df, encode_features=False)
 
@@ -59,9 +68,11 @@ epc_df = pd.read_csv(
 epc_df = data_preprocessing.feature_encoding_for_hp_status(epc_df)
 epc_df.head()
 
+# %% [markdown]
+# ### Get training data and labels
+
 # %%
 drop_features = [
-    # "POSTCODE",
     "POSTCODE_AREA",
     "POSTCODE_DISTRICT",
     "POSTCODE_SECTOR",
@@ -72,15 +83,45 @@ drop_features = [
 X, y = hp_status_prediction.get_data_with_labels(
     epc_df, version="Future HP Status", drop_features=drop_features, balanced_set=True
 )
-
-
-# %%
 X.head()
+
+# %% [markdown]
+# ### Train the Predictive Model
 
 # %%
 model = hp_status_prediction.predict_heat_pump_status(X, y, save_predictions=True)
 
+# %% [markdown]
+# ### Dimensionality Reduction and Feature Coefficients
+
 # %%
+X_scaled = hp_status_prediction.prepr_pipeline_no_pca.fit_transform(X)
+
+# Reduce dimensionality to level of 90% explained variance ratio
+X_dim_reduced = plotting_utils.dimensionality_reduction(
+    X_scaled,
+    dim_red_technique="pca",
+    pca_expl_var_ratio=0.90,
+    random_state=42,
+)
+
+# %%
+hp_status_prediction.coefficient_importance(
+    X, y, "Linear Support Vector Classifier", version="Future HP Status", pca=False
+)
+
+# %%
+hp_status_prediction.coefficient_importance(
+    X, y, "Linear Support Vector Classifier", version="Future HP Status", pca=True
+)
+
+# %% [markdown]
+# ### Error Analysis
+#
+# #### Does not need to be reviewed just yet.
+
+# %%
+# Loading the predictions and errors
 df = pd.read_csv(
     hp_status_prediction.SUPERVISED_MODEL_OUTPUT
     + "household_based_predictions_with_support_vector_classifier.csv"
@@ -106,33 +147,3 @@ print(owner_occupied.shape)
 
 # %%
 test[true_positives & owner_occupied & high_conf_hp]
-
-# %% [markdown]
-# ## Scaling and Dimensionality Reduction
-#
-# ... and some functions
-#
-#
-
-# %%
-X_scaled = hp_status_prediction.prepr_pipeline_no_pca.fit_transform(X)
-
-# Reduce dimensionality to level of 90% explained variance ratio
-X_dim_reduced = plotting_utils.dimensionality_reduction(
-    X_scaled,
-    dim_red_technique="pca",
-    pca_expl_var_ratio=0.90,
-    random_state=42,
-)
-
-# %%
-hp_status_prediction.coefficient_importance(
-    X, y, "Linear Support Vector Classifier", version="Future HP Status", pca=False
-)
-
-# %%
-hp_status_prediction.coefficient_importance(
-    X, y, "Linear Support Vector Classifier", version="Future HP Status", pca=True
-)
-
-# %%

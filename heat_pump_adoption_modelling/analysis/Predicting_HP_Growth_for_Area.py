@@ -35,6 +35,7 @@ from heat_pump_adoption_modelling.pipeline.supervised_model.utils import (
     plotting_utils,
     error_analysis,
     kepler,
+    hyperparameter_screening,
 )
 from heat_pump_adoption_modelling.pipeline.preprocessing import (
     data_cleaning,
@@ -63,6 +64,9 @@ epc_df = epc_df.drop(columns=data_preprocessing.drop_features)
 epc_df.head()
 
 # %%
+aggr_temp.head()
+
+# %%
 drop_features = ["HP_INSTALL_DATE"]
 postcode_level = "POSTCODE_UNIT"
 
@@ -78,13 +82,24 @@ X, y = hp_growth_prediction.get_data_with_labels(
 X.head()
 
 # %%
+X.columns[X.isna().any()].tolist()
+
+# %%
+X.head()
+
+# %%
+hyperparameter_screening.grid_screening(
+    "Random Forest Regressor", X, y, "neg_mean_squared_error"
+)
+
+# %%
 model = hp_growth_prediction.predict_hp_growth_for_area(X, y, save_predictions=True)
 
 # %%
 df = pd.read_csv(
     hp_growth_prediction.SUPERVISED_MODEL_OUTPUT
-    + "Predictions_with_Random_Forest_Regressor.csv"
-).drop(columns=["Unnamed: 0"])
+    + "area_based_predictions_with_random_forest_regressor.csv"
+)
 df.head()
 
 # %%
@@ -112,8 +127,10 @@ train = df.loc[df["training set"] == True]
 
 set_dict = {"Validation Set": test, "Training Set": train, "Full Set": df}
 
-
 # %%
+pd.options.mode.chained_assignment = None
+
+
 @interact(
     target=["GROWTH", "HP_COVERAGE_FUTURE"],
     y_axis=["Ground Truth", "Predictions"],
