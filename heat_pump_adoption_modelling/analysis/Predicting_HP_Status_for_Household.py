@@ -59,11 +59,11 @@ from ipywidgets import interact
 
 # %%
 # If preloaded file is not yet available:
-# epc_df = data_preprocessing.epc_sample_loading(subset="5m", preload=False)
+# epc_df = data_preprocessing.epc_sample_loading(subset="5m", preload=True)
 # epc_df = data_preprocessing.data_preprocessing(epc_df, encode_features=False)
 
 epc_df = pd.read_csv(
-    data_preprocessing.SUPERVISED_MODEL_OUTPUT + "epc_df_preprocessed.csv"
+    data_preprocessing.SUPERVISED_MODEL_OUTPUT + "epc_df_5m_preprocessed.csv"
 )
 epc_df = data_preprocessing.feature_encoding_for_hp_status(epc_df)
 epc_df.head()
