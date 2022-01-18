@@ -14,9 +14,18 @@
 #     name: heat_pump_adoption_modelling
 # ---
 
+# %% [markdown]
+# # Predicting the Heat Pump Growth for Areas
+
+# %% [markdown]
+# ### Imports
+
 # %%
 # %load_ext autoreload
 # %autoreload 2
+
+from heat_pump_adoption_modelling import PROJECT_DIR, get_yaml_config, Path
+
 
 from heat_pump_adoption_modelling.getters import epc_data, deprivation_data
 from heat_pump_adoption_modelling import PROJECT_DIR
@@ -30,41 +39,39 @@ from heat_pump_adoption_modelling.pipeline.supervised_model import (
     hp_growth_prediction,
     hp_status_prediction,
 )
-
-from heat_pump_adoption_modelling.pipeline.supervised_model.utils import (
-    plotting_utils,
-    error_analysis,
-    kepler,
-    hyperparameter_screening,
-)
 from heat_pump_adoption_modelling.pipeline.preprocessing import (
     data_cleaning,
     feature_engineering,
 )
 
-from heat_pump_adoption_modelling import PROJECT_DIR, get_yaml_config, Path
+from heat_pump_adoption_modelling.pipeline.supervised_model.utils import (
+    error_analysis,
+    plotting_utils,
+)
+from heat_pump_adoption_modelling.pipeline.supervised_model.utils import kepler
 
-from ipywidgets import interact
-
-import matplotlib as mpl
 import pandas as pd
-
 from keplergl import KeplerGl
+import matplotlib as mpl
 
 mpl.rcParams.update(mpl.rcParamsDefault)
 
+from ipywidgets import interact
+
+# %% [markdown]
+# ### Loading, preprocessing, agglomerating on postcode level, and encoding
+
 # %%
+# If preloaded file is not yet available:
 # epc_df = data_preprocessing.epc_sample_loading(subset="5m", preload=True)
 # epc_df = data_preprocessing.data_preprocessing(epc_df, encode_features=False)
 
 epc_df = pd.read_csv(
-    data_preprocessing.SUPERVISED_MODEL_OUTPUT + "epc_df_preprocessed.csv"
+    data_preprocessing.SUPERVISED_MODEL_OUTPUT + "epc_df_5m_preprocessed.csv"
 )
+
 epc_df = epc_df.drop(columns=data_preprocessing.drop_features)
 epc_df.head()
-
-# %%
-aggr_temp.head()
 
 # %%
 drop_features = ["HP_INSTALL_DATE"]
@@ -74,6 +81,9 @@ aggr_temp = data_preprocessing.get_aggregated_temp_data(
     epc_df, 2015, 2018, postcode_level, drop_features=drop_features
 )
 
+# %% [markdown]
+# ### Get training data and labels
+
 # %%
 X, y = hp_growth_prediction.get_data_with_labels(
     aggr_temp, ["GROWTH", "HP_COVERAGE_FUTURE"], drop_features=[]
@@ -81,41 +91,31 @@ X, y = hp_growth_prediction.get_data_with_labels(
 
 X.head()
 
-# %%
-X.columns[X.isna().any()].tolist()
-
-# %%
-X.head()
-
-# %%
-hyperparameter_screening.grid_screening(
-    "Random Forest Regressor", X, y, "neg_mean_squared_error"
-)
+# %% [markdown]
+# ### Train the Predictive Model
 
 # %%
 model = hp_growth_prediction.predict_hp_growth_for_area(X, y, save_predictions=True)
 
+# %% [markdown]
+# ### Error Analysis
+#
+# ##### Does not yet have to be reviewed.
+
 # %%
+# Load predictions, errors etc.
 df = pd.read_csv(
     hp_growth_prediction.SUPERVISED_MODEL_OUTPUT
-    + "area_based_predictions_with_random_forest_regressor.csv"
-)
+    + "Predictions_with_Random_Forest_Regressor.csv"
+).drop(columns="Unnamed: 0")
 df.head()
 
 # %%
-print("POSTCODE_UNIT" in list(df.columns) or "POSTCODE" in list(df.columns))
-
-# %%
+# Areas with no heat pump at latest stage
 df["No heat pumps"] = df["HP_COVERAGE_FUTURE"] == 0.0
 
 # %%
-print("HP Coverage Future")
-print("----------------")
 error_analysis.print_prediction_and_error(df, "HP_COVERAGE_FUTURE")
-print()
-
-print("Growth")
-print("----------------")
 error_analysis.print_prediction_and_error(df, "GROWTH")
 
 # %%
@@ -128,7 +128,7 @@ train = df.loc[df["training set"] == True]
 set_dict = {"Validation Set": test, "Training Set": train, "Full Set": df}
 
 # %%
-pd.options.mode.chained_assignment = None
+pd.options.mode.chained_assignment = None  # default='warn'
 
 
 @interact(
@@ -164,6 +164,8 @@ def value_counts(feature):
 
 # %% [markdown]
 # ### Kepler
+#
+# #### Still work in progress.
 
 # %%
 kepler_df = df.rename(
