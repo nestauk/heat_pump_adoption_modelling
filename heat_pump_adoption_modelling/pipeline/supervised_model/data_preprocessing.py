@@ -432,7 +432,7 @@ def epc_sample_loading(subset="5m", preload=True):
 
         if preload:
             epc_df = pd.read_csv(
-                SUPERVISED_MODEL_OUTPUT + "epc_df_5m.csv", dtype=dtypes
+                SUPERVISED_MODEL_OUTPUT + "epc_df_{}.csv".format(subset), dtype=dtypes
             )
 
         # Select a subset of at least 5m samples keeping postcodes complete
@@ -449,20 +449,27 @@ def epc_sample_loading(subset="5m", preload=True):
             )
 
             # Save output
-            epc_df.to_csv(SUPERVISED_MODEL_OUTPUT + "epc_df_5m.csv", index=False)
+            epc_df.to_csv(
+                SUPERVISED_MODEL_OUTPUT + "epc_df_{}.csv".format(subset), index=False
+            )
     else:
         raise IOError("Subset '{}' is not defined.".format(subset))
 
     return epc_df
 
 
-def feature_encoding_for_hp_status(epc_df):
+def feature_encoding_for_hp_status(epc_df, subset="5m"):
     """Feature encode the EPC dataset for the HP status predictions.
 
     Parameters
     ----------
     epc_df : pandas.Dataframe
         EPC dataset with unencoded features.
+
+    subset : str, default='5m'
+        Subset name of EPC dataset.
+        '5m' : 5 million samples
+        'complete' : complete set of samples of ~21 million samples
 
     Return
     ---------
@@ -488,18 +495,28 @@ def feature_encoding_for_hp_status(epc_df):
     )
 
     # Save encoded features
-    epc_df.to_csv(SUPERVISED_MODEL_OUTPUT + "epc_df_encoded.csv", index=False)
+    epc_df.to_csv(
+        SUPERVISED_MODEL_OUTPUT + "epc_df_{}_encoded.csv".format(subset), index=False
+    )
 
     return epc_df
 
 
-def data_preprocessing(epc_df, encode_features=False, verbose=True):
+def data_preprocessing(epc_df, encode_features=False, subset="5m"):
     """Load EPC and MCS data, fix heat pump install dates, encode features.
 
     Parameters
     ----------
     epc_df : pandas.Dataframe
         Unprocessed EPC dataset.
+
+    encode_features : bool, default=False
+        Encode the features in the end (e.g. for HP status).
+
+    subset : str, default='5m'
+        Subset name of EPC dataset.
+        '5m' : 5 million samples
+        'complete' : complete set of samples of ~21 million samples
 
     Return
     ---------
@@ -517,7 +534,10 @@ def data_preprocessing(epc_df, encode_features=False, verbose=True):
     # Fix the HP install dates and add different postcode levels
     epc_df = manage_hp_install_dates(epc_df)
     epc_df = data_aggregation.get_postcode_levels(epc_df)
-    epc_df.to_csv(SUPERVISED_MODEL_OUTPUT + "epc_df_preprocessed.csv", index=False)
+    epc_df.to_csv(
+        SUPERVISED_MODEL_OUTPUT + "epc_df_{}_preprocessed.csv".fomrat(subset),
+        index=False,
+    )
 
     # Feature encoding
     if encode_features:
@@ -541,40 +561,51 @@ def data_preprocessing(epc_df, encode_features=False, verbose=True):
             drop_features=drop_features,
         )
 
-        epc_df.to_csv(SUPERVISED_MODEL_OUTPUT + "epc_df_encoded.csv", index=False)
+        epc_df.to_csv(
+            SUPERVISED_MODEL_OUTPUT + "epc_df_{}_encoded.csv".format(subset),
+            index=False,
+        )
 
     return epc_df
 
 
 def main():
 
-    # Loading the data and preprocessing
+    subset = "5m"
+
+    # Loading the data and preprocessing (5m subset)
     # =================================================
 
     # epc_df = epc_sample_loading(subset="5m", preload=True)
-    # epc_df = data_preprocessing(epc_df, encode_features=True)
+    # epc_df = data_preprocessing(epc_df, encode_features=False)
 
     # Equivalent to:
-    epc_df = pd.read_csv(SUPERVISED_MODEL_OUTPUT + "epc_df_preprocessed.csv")
+    epc_df = pd.read_csv(
+        SUPERVISED_MODEL_OUTPUT + "epc_df_{}_preprocessed.csv".format(subset)
+    )
 
-    # Encoding features for Household HP Status
+    # Encoding features for Household HP Status (5m subset)
     # =================================================
 
+    # epc_df = pd.read_csv(SUPERVISED_MODEL_OUTPUT + "epc_df_preprocessed.csv")
     # epc_df = data_preprocessing.feature_encoding_for_hp_status(epc_df)
 
     # Equivalent to:
-    epc_df = pd.read_csv(SUPERVISED_MODEL_OUTPUT + "epc_df_encoded.csv")
-
-    # Aggregating and encoding features for Area HP Growth
-    # =================================================
     epc_df = pd.read_csv(
-        data_preprocessing.SUPERVISED_MODEL_OUTPUT + "epc_df_preprocessed.csv"
+        SUPERVISED_MODEL_OUTPUT + "epc_df_{}_encoded.csv".format(subset)
+    )
+
+    # Aggregating and encoding features for Area HP Growth (5m subset)
+    # =================================================
+
+    epc_df = pd.read_csv(
+        SUPERVISED_MODEL_OUTPUT + "epc_df_{}_preprocessed.csv".format(subset)
     )
 
     drop_features = ["HP_INSTALL_DATE"]
     postcode_level = "POSTCODE_UNIT"
 
-    aggr_temp = data_preprocessing.get_aggregated_temp_data(
+    aggr_temp = get_aggregated_temp_data(
         epc_df, 2015, 2018, postcode_level, drop_features=drop_features
     )
 
