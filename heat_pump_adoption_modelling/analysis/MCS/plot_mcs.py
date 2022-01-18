@@ -83,8 +83,6 @@ def plottable_data(file_path=MERGED_PATH):
     mcs_epc["built_post_1950"] = mcs_epc["CONSTRUCTION_AGE_BAND"].map(ages_dict)
     mcs_epc["built_pre_1950"] = ~mcs_epc["built_post_1950"].astype("boolean")
 
-    mcs_epc = mcs_epc.loc[mcs_epc.n_certificates == 1]
-
     return mcs_epc
 
 
@@ -110,10 +108,6 @@ def archetypes(df):
         ("Post-1950 flats", (df.PROPERTY_TYPE == "Flat") & (df.built_post_1950)),  # 1
         ("Pre-1950 flats", (df.PROPERTY_TYPE == "Flat") & (df.built_pre_1950)),  # 2
         (  # 3
-            "Post-1950 bungalows",
-            (df.PROPERTY_TYPE == "Bungalow") & (df.built_post_1950),
-        ),
-        (  # 4
             "Post-1950 semi-detached,\nterraced and maisonettes",
             (
                 (df.PROPERTY_TYPE == "Maisonette")
@@ -134,13 +128,7 @@ def archetypes(df):
             )
             & (df.built_post_1950),
         ),
-        (  # 5
-            "Post-1950 detached",
-            (df.PROPERTY_TYPE == "House")
-            & (df.BUILT_FORM == "Detached")
-            & (df.built_post_1950),
-        ),
-        (  # 6
+        (  # 4
             "Pre-1950 semi-detached,\nterraced and maisonettes",
             (
                 (df.PROPERTY_TYPE == "Maisonette")
@@ -155,9 +143,19 @@ def archetypes(df):
             )
             & (df.built_pre_1950),
         ),
-        (  # 7
+        (  # 5
+            "Post-1950 bungalows",
+            (df.PROPERTY_TYPE == "Bungalow") & (df.built_post_1950),
+        ),
+        (  # 6
             "Pre-1950 bungalows",
             (df.PROPERTY_TYPE == "Bungalow") & (df.built_pre_1950),
+        ),
+        (  # 7
+            "Post-1950 detached",
+            (df.PROPERTY_TYPE == "House")
+            & (df.BUILT_FORM == "Detached")
+            & (df.built_post_1950),
         ),
         (  # 8
             "Pre-1950 detached",
@@ -173,7 +171,7 @@ def archetypes(df):
 #### PLOTS
 
 
-def plot_manufacturer_bar(df):
+def plot_manufacturer_bar(df, format=".svg"):
     """Plot the top 10 counts of installed heat pumps by manufacturer.
 
     Parameters
@@ -212,7 +210,7 @@ def plot_manufacturer_bar(df):
     ax.barh(manufacturer_data.index[::-1], manufacturer_data[::-1], zorder=5)
 
     ax.set_title(
-        "Top 10 manufacturers of MCS-certified\ninstalled heat pumps (2010-21)"
+        "Top 10 manufacturers of MCS-certified\ninstalled heat pumps (Jan 2010 - Sep 2021)"
     )
     ax.set_xlabel("Number of heat pumps")
     ax.set_ylabel("Manufacturer")
@@ -220,10 +218,10 @@ def plot_manufacturer_bar(df):
 
     plt.tight_layout()
 
-    plt.savefig(FIG_PATH / "manufacturer_bar.svg", bbox_inches="tight")
+    plt.savefig(FIG_PATH / ("manufacturer_bar" + format), bbox_inches="tight")
 
 
-def plot_median_costs(df):
+def plot_median_costs(df, format=".svg"):
     """Plot time series of median inflation-adjusted
     installation costs over time (from 2015 as sample sizes
     before this are reasonably small) for both AS and GSHPs.
@@ -277,10 +275,10 @@ def plot_median_costs(df):
 
     plt.tight_layout()
 
-    plt.savefig(FIG_PATH / "median_costs.svg", bbox_inches="tight")
+    plt.savefig(FIG_PATH / ("median_costs" + format), bbox_inches="tight")
 
 
-def scop_trend_plot(df):
+def scop_trend_plot(df, format=".svg"):
     """Plot time series of mean SCOP of installed heat pumps
     for flow temperatures of 35, 40, 45, 50, 55 (the most
     common flow temperatures) over time (2016 onwards to ensure
@@ -345,10 +343,10 @@ def scop_trend_plot(df):
         title="Flow temp. ($\degree$C)", loc="center left", bbox_to_anchor=(1, 0.5)
     )
 
-    plt.savefig(FIG_PATH / "mean_scop.svg", bbox_inches="tight")
+    plt.savefig(FIG_PATH / ("mean_scop" + format), bbox_inches="tight")
 
 
-def ashp_capacity_cost_boxplot(df):
+def ashp_capacity_cost_boxplot(df, format=".svg"):
     """Produce boxplot of ASHP inflation-adjusted installation costs
     vs their capacities for capacities between 5 and 16 inclusive
     (the most common capacities), only considering data from 2019 onwards
@@ -395,16 +393,18 @@ def ashp_capacity_cost_boxplot(df):
     ax.set_ylim(0, 50000)
     ax.set_xlabel("HP capacity")
     ax.set_ylabel("Inflation-adjusted cost (£2021)")
-    ax.set_title("MCS-certified ASHP installation costs by capacity (2019-21)")
+    ax.set_title(
+        "MCS-certified ASHP installation costs by capacity (Jan 2019 - Sep 2021)"
+    )
 
     # Add labels to x axis
     plt.setp(ax, xticklabels=capacity_list)
     plt.tight_layout()
 
-    plt.savefig(FIG_PATH / "capacity_cost_boxplots.svg", bbox_inches="tight")
+    plt.savefig(FIG_PATH / ("capacity_cost_boxplots" + format), bbox_inches="tight")
 
 
-def ashp_archetypes_boxplot(df, factor):
+def ashp_archetypes_boxplot(df, factor, format=".svg"):
     """Produce boxplot of ASHP inflation-adjusted installation costs
     for each archetype (only considering data from 2019 onwards).
 
@@ -427,8 +427,8 @@ def ashp_archetypes_boxplot(df, factor):
     ashp_data_list = []
 
     archetype_list = archetypes(df)
-    # off_scale = 0
-    # total = 0
+    off_scale = 0
+    total = 0
 
     for name, condition in archetype_list:
         filtered_df = df.loc[
@@ -438,8 +438,8 @@ def ashp_archetypes_boxplot(df, factor):
         ]
         values = list(filtered_df[factor].dropna())
         ashp_data_list.append(values)
-        # off_scale += sum([value > 30000 for value in values])
-        # total += len(values)
+        off_scale += sum([value > 30000 for value in values])
+        total += len(values)
 
     ashp_data_list = ashp_data_list[::-1]
 
@@ -460,16 +460,24 @@ def ashp_archetypes_boxplot(df, factor):
         ax.set_xlim(0, 30000)
         ax.set_xlabel("Inflation-adjusted cost of installation (£2021)")
         ax.set_ylabel("Property type")
-        ax.set_title("MCS-certified ASHP installation costs by property type (2019-21)")
+        ax.set_title(
+            "MCS-certified ASHP installation costs by property type (Jan 2019 - Sep 2021)"
+        )
     elif factor == "capacity":
         ax.set_xlim(0, 30)
         ax.set_xlabel("ASHP capacity")
         ax.set_ylabel("Property type")
-        ax.set_title("MCS-certified ASHP capacities by property type (2019-21)")
+        ax.set_title(
+            "MCS-certified ASHP capacities by property type (Jan 2019 - Sep 2021)"
+        )
 
     ax.grid(axis="x", color="0.8")
 
-    # percentage_off_scale = round(off_scale / total * 100, 2)
+    percentage_off_scale = off_scale / total * 100
+
+    print(factor)
+    print(" off scale: ")
+    print(percentage_off_scale)
 
     # plt.figtext(0.99, 0.01,
     #     "Only 2019-21 data used due to increased data quality post-2019.\n{}% of points lie outside axis limits.".format(
@@ -485,7 +493,7 @@ def ashp_archetypes_boxplot(df, factor):
     version_name = "cost" if factor == "inflated_cost" else "capacity"
 
     plt.savefig(
-        FIG_PATH / "ashp_{}_archetype_boxplots.svg".format(version_name),
+        FIG_PATH / ("ashp_{}_archetype_boxplots".format(version_name) + format),
         bbox_inches="tight",
     )
 
@@ -511,12 +519,12 @@ def main():
     print("Loading data...")
     data = plottable_data()
     print("Plotting...")
-    plot_manufacturer_bar(data)
-    plot_median_costs(data)
-    scop_trend_plot(data)
-    ashp_capacity_cost_boxplot(data)
-    ashp_archetypes_boxplot(data, "inflated_cost")
-    ashp_archetypes_boxplot(data, "capacity")
+    plot_manufacturer_bar(data, format=".svg")
+    plot_median_costs(data, format=".svg")
+    scop_trend_plot(data, format=".svg")
+    ashp_capacity_cost_boxplot(data, format=".svg")
+    ashp_archetypes_boxplot(data, "inflated_cost", format=".svg")
+    ashp_archetypes_boxplot(data, "capacity", format=".svg")
 
 
 if __name__ == "__main__":
