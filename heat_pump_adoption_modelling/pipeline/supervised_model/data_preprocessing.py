@@ -85,12 +85,9 @@ SUPERVISED_MODEL_FIG_PATH = str(PROJECT_DIR) + config["SUPERVISED_MODEL_FIG_PATH
 dtypes = config["dtypes"]
 
 
-def select_samples_by_postcode_completeness(
-    df, min_samples=5000000, start=250000, interval=1000
-):
-    """Select a subset of samples with a minimal number of samples,
-    including all samples for each unique postcode.
-    This is done by increasing the number of postcodes and adding up the samples.
+def select_samples_by_postcode_completeness(df, min_samples=5000000):
+    """Select a subset with a minimum specified size from the given dataframe.
+    The sample consists of all records from a random selection of postcodes in the dataframe."
 
     Parameters
     ----------
@@ -100,34 +97,33 @@ def select_samples_by_postcode_completeness(
     min_samples: int, default=5000000
         Number of minimal samples, stop after reaching this number.
 
-    start: int, default=25000
-        Start with this number of postcodes.
-
-    interval: int, default=1000
-        The interval by which to increase number of postcodes every iteration.
-
     Return
     ---------
     df_reduced : pandas.Dataframe
         Subset of original dataframe
         with minimal number of samples and complete postcodes."""
 
-    # Iterate over batches of postcodes and add up samples
-    for i in range(start, min_samples, interval):
-        grouped_by = (
-            df.groupby("POSTCODE")
-            .size()
-            .reset_index(name="count")[:i]
-            .sample(frac=1, random_state=42)
-        )
-        n_samples = grouped_by["count"].sum()
+    # Get number of samples per postcpde and shuffle
+    postcode_counts = df.groupby("POSTCODE").size().reset_index(name="count")
+    postcode_counts = postcode_counts.sample(frac=1, random_state=42)
 
-        # If minimal number of samples is reached, get all samples for
-        # selected postcodes.
-        if n_samples > min_samples:
-            sample_ids = list(grouped_by["POSTCODE"])
-            df_reduced = df.loc[df["POSTCODE"].isin(sample_ids)]
-            return df_reduced
+    # Get postcodes whose samples add up to just below min number of samples
+    postcodes = list(
+        postcode_counts.loc[postcode_counts["count"].cumsum() < min_samples]["POSTCODE"]
+    )
+
+    # Get postcode that drive sample number over minimum
+    postcodes += list(
+        postcode_counts.loc[postcode_counts["count"].cumsum() >= min_samples][
+            "POSTCODE"
+        ]
+    )[:1]
+
+    # Alternatively: faster yet not as readable
+    # postcodes = grouped_by_pc.iloc[:np.where(grouped_by_pc['count'].cumsum() >= min_samples)[0][0]+1]['POSTCODE']
+
+    # Select samples with postcodes
+    df = df.loc[df["POSTCODE"].isin(postcodes)]
 
 
 def get_mcs_install_dates(epc_df):
