@@ -16,113 +16,39 @@ from heat_pump_adoption_modelling.pipeline.encoding import feature_encoding
 # ----------------------------------------------------------------------------------
 
 
-def split_postcode(postcode):
-    """Split postcode into two sections.
-    For example: 'YO30' and '5QW' for YO30 5QW
+def split_postcode_by_level(postcode, level):
 
-    Parameters
-    ----------
-    postcode: str
-        Original full postcode.
+    postcode = postcode.split()
 
-    Return
-    ---------
-    part_1: str
-        First part of postcode.
+    if level == "area":
+        return re.findall(r"([A-Z]+)", postcode)[0]
 
-    part_2: str
-        Second part of postcode."""
+    else:
+        part_1 = postcode[:-3].split()
+        part_2 = postcode[-3:].split()
 
-    # Split postcode into two sections
-    try:
-        part_1, part_2 = re.findall(
-            r"([A-Z]{1,2}[0-9]{1,2})\s*([0-9][A-Z]{1,2})", postcode
-        )[0]
-
-    # If not found
-    except IndexError:
-        return None
-
-    return part_1, part_2
-
-
-def get_postcode_area(postcode):
-    """Get postcode area (highest postcode level).
-    For example: YO for YO30 5QW
-
-    Parameters
-    ----------
-    postcode: str
-        Original full postcode.
-
-    Return
-    ---------
-    postcode area : str"""
-
-    # Split postcode into two sections
-    split_pc = split_postcode(postcode)
-
-    if split_pc is None:
-        return np.nan
-
-    # Get first letters
-    part_1, _ = split_pc
-    postcode_area = re.findall(r"([A-Z]+)", part_1)[0]
-
-    return postcode_area
-
-
-def get_postcode_district(postcode):
-    """Get postcode area (2nd highest postcode level).
-    For example: YO30 for YO30 5QW
-
-    Parameters
-    ----------
-    postcode: str
-        Original full postcode.
-
-    Return
-    ---------
-    postcode district : str"""
-
-    # Split postcode into two sections
-    split_pc = split_postcode(postcode)
-
-    if split_postcode is None:
-        return np.nan
-
-    # First section is equal two district
-    part_1, _ = split_pc
-    return part_1
-
-
-def get_postcode_sector(postcode):
-    """Get postcode sector (2nd lowest postcode level).
-    For example: YO30 5 for YO30 5QW
-
-    Parameters
-    ----------
-    postcode: str
-        Original full postcode.
-
-    Return
-    ---------
-    postcode sector : str"""
-
-    # Split postcode into two sections
-    split_pc = split_postcode(postcode)
-
-    if split_postcode is None:
-        return np.nan
-
-    # Get first part + numbers of 2nd part
-    part_1, part_2 = split_pc
-    postcode_sector = part_1 + re.findall(r"[0-9]", part_2)[0]
-    return postcode_sector
+        if level == "district":
+            return part_1
+        elif level == "sector":
+            return part_1 + " " + part_2[0]
+        elif level == "unit":
+            return part_1 + " " + part_2
+        else:
+            raise IOError(
+                "Postcode level '{}' unknown. Please select 'area', 'district', 'sector' or 'unit'.".format(
+                    level
+                )
+            )
 
 
 def get_postcode_levels(df, only_keep=None):
     """Get 4 different postcode levels: area, district, sector and unit.
+    For example, given YO30 5QW:
+    - area: YO
+    - district: YO30
+    - sector: YO30 5
+    - unit: YO30 5QW
+
     Optionally, only keep required postcode level.
 
     Parameters
@@ -140,21 +66,15 @@ def get_postcode_levels(df, only_keep=None):
     df : pandas.DataFrame with added postcode levels
     """
 
-    df["POSTCODE_AREA"] = df["POSTCODE"].apply(get_postcode_area)
-    df["POSTCODE_DISTRICT"] = df["POSTCODE"].apply(get_postcode_district)
-    df["POSTCODE_SECTOR"] = df["POSTCODE"].apply(get_postcode_sector)
-    df["POSTCODE_UNIT"] = df["POSTCODE"]
+    levels = ["area", "sector", "district", "unit"]
 
     if only_keep is not None:
-        postcode_columns = [
-            "POSTCODE_AREA",
-            "POSTCODE_DISTRICT",
-            "POSTCODE_SECTOR",
-            "POSTCODE_UNIT",
-            "POSTCODE",
-        ]
-        postcode_columns.remove(only_keep)
-        df = df.drop(columns=postcode_columns)
+        levels = [only_keep]
+
+    for level in levels:
+        df["POSTCODE_" + level.upper()] = df["POSTCODE"].apply(
+            split_postcode_by_level, level=level
+        )
 
     return df
 
