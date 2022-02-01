@@ -12,13 +12,16 @@ import pandas as pd
 import numpy as np
 
 from heat_pump_adoption_modelling.pipeline.encoding import feature_encoding
+from heat_pump_adoption_modelling.pipeline.preprocessing import feature_engineering
 
 # ----------------------------------------------------------------------------------
 
 
-def split_postcode_by_level(postcode, level):
+def split_postcode_by_level(postcode, level, with_space=True):
 
     postcode = postcode.split()
+
+    seperation = " " if with_space else ""
 
     if level == "area":
         return re.findall(r"([A-Z]+)", postcode)[0]
@@ -30,9 +33,9 @@ def split_postcode_by_level(postcode, level):
         if level == "district":
             return part_1
         elif level == "sector":
-            return part_1 + " " + part_2[0]
+            return part_1 + seperation + part_2[0]
         elif level == "unit":
-            return part_1 + " " + part_2
+            return part_1 + seperation + part_2
         else:
             raise IOError(
                 "Postcode level '{}' unknown. Please select 'area', 'district', 'sector' or 'unit'.".format(
@@ -41,7 +44,7 @@ def split_postcode_by_level(postcode, level):
             )
 
 
-def get_postcode_levels(df, only_keep=None):
+def get_postcode_levels(df, only_keep=None, with_space=True):
     """Get 4 different postcode levels: area, district, sector and unit.
     For example, given YO30 5QW:
     - area: YO
@@ -73,7 +76,7 @@ def get_postcode_levels(df, only_keep=None):
 
     for level in levels:
         df["POSTCODE_" + level.upper()] = df["POSTCODE"].apply(
-            split_postcode_by_level, level=level
+            split_postcode_by_level, level=level, with_space=with_space
         )
 
     return df
@@ -206,10 +209,10 @@ def get_feature_count_grouped(df, feature, groupby_f, value=True, name=None):
     return feature_cats_by_aggr_f[[groupby_f, name]]
 
 
-def encode_aggregated_features(
-    df, postcode_level, ordinal_features, unaltered_features
+def aggregate_and_encode_features(
+    df, postcode_level, ordinal_features, drop_features=[]
 ):
-    """Encode the aggregated features.
+    """Aggregated features on postcode level and encode them.
     For numeric features, the median of all postcode level properties is computed.
     For categorical feature, the percentage of category/value per postcode level is computed.
     In addition, the most frequent category/value is detected and one-hot encoded.
@@ -225,8 +228,8 @@ def encode_aggregated_features(
     ordinal_features: list
         List of ordinal features.
 
-    unaltered_features: list
-        Features that should not be altered or encoded."
+    drop_features: list, default=[]
+        Features that should not be aggregated and are dropped."
 
     Return
     ---------
@@ -250,7 +253,7 @@ def encode_aggregated_features(
         for feature in df.columns
         if (feature not in ordinal_features)
         and (feature not in numeric_features)
-        and (feature not in unaltered_features)
+        and (feature not in drop_features)
     ]
 
     # Aggreate categorical features
@@ -268,19 +271,14 @@ def encode_aggregated_features(
 
     # Concatenate the processed categorical, numeric and unaltered features
     aggregated_df = pd.concat(
-        [
-            cat_aggregated,
-            num_aggregated.drop(columns=[postcode_level]),
-            df[unaltered_features],
-        ],
+        [cat_aggregated, num_aggregated.drop(columns=[postcode_level])],
         axis=1,
     )
-
     return aggregated_df
 
 
 def get_target_variables(
-    df, source_year, target_year, postcode_level, normalise="total"
+    df, source_year, target_year, postcode_level, normalize_by="total"
 ):
     """Get the target variables (current and future heat pump coverage and growth)
     based on source and target year data.
@@ -289,6 +287,7 @@ def get_target_variables(
     ----------
     df: pandas.Dataframe
         Dataframe with all year's data, used for normalising.
+        Duplicates will be filtered out.
 
     source_year: pandas.Dataframe
         Dataframe with data up to source year.
@@ -299,11 +298,12 @@ def get_target_variables(
     postcode_level: str
         Postcode level to group by.
 
-    normalise: str, default='total'
-        How to normalise the number of properties per postcode.
-        'total' : normalise by total number of properties
-        'target' : normalise by number of properties by target year
-        'total HPs' : normalise by total number of HPs
+    normalize_by: str, default='total'
+        How to normalize the number of properties per postcode.
+        'total' : normalize by total number of properties
+        'target' : normalize by number of properties by target year
+        'total HPs' : normalize by total number of HPs in postcode properties
+                      at latest entry time
 
     Return
     ---------
@@ -317,21 +317,27 @@ def get_target_variables(
     n_hp_installed_target = get_feature_count_grouped(
         target_year, "HP_INSTALLED", postcode_level, name="# HP by target year"
     )
+
+    dedupl_df = feature_engineering.filter_by_year(
+        df, "BUILDING_ID", None, selection="latest entry"
+    )
+
     n_hp_installed_total = get_feature_count_grouped(
-        df, "HP_INSTALLED", postcode_level, name="Total # HP"
+        dedupl_df, "HP_INSTALLED", postcode_level, name="Total # HP"
     )
 
     # Select basis for normalisation
-    if normalise == "total":
-        total_basis = df
-    elif normalise == "target":
+    if normalize_by in ["total", "total HPs"]:
+        total_basis = dedupl_df
+        norm_feature = "# Properties" if normalize_by == "total" else "Total # HP"
+
+    elif normalize_by == "target":
         total_basis = target_year
-    elif normalise == "total HPs":
-        total_basis = n_hp_installed_total
+        norm_feature = "# Properties"
     else:
         raise IOError(
             "Normalisation type '{}' is not defined. Please use 'total' or 'target' instead.".format(
-                normalise
+                normalize_by
             )
         )
 
@@ -348,15 +354,20 @@ def get_target_variables(
     # Merge with number of properties
     target_var_df = pd.merge(target_var_df, n_prop_total, on=postcode_level)
 
+    if normalize_by == "total HPs":
+        print("get here")
+        target_var_df = pd.merge(target_var_df, n_hp_installed_total, on=postcode_level)
+
     # Compute heat pump coverage and growth
     target_var_df["HP_COVERAGE_CURRENT"] = (
-        target_var_df["# HP by source year"] / target_var_df["# Properties"]
+        target_var_df["# HP by source year"] / target_var_df[norm_feature]
     )
     target_var_df["HP_COVERAGE_FUTURE"] = (
-        target_var_df["# HP by target year"] / target_var_df["# Properties"]
+        target_var_df["# HP by target year"] / target_var_df[norm_feature]
     )
     target_var_df["GROWTH"] = (
         target_var_df["HP_COVERAGE_FUTURE"] - target_var_df["HP_COVERAGE_CURRENT"]
     )
-
-    return target_var_df
+    return target_var_df[
+        ["HP_COVERAGE_CURRENT", "HP_COVERAGE_FUTURE", "GROWTH", postcode_level]
+    ]

@@ -395,13 +395,19 @@ def get_aggregated_temp_data(
     ----------
     df : pandas.DataFrame
         Dataframe with EPC data and MCS install dates.
+        Requires the feature "HP_INSTALLED" to extract
+        the number of HP properties.
 
     source_year : int
         Use data up to source year for training.
+        Requires the feature "HP_INSTALLED" to extract
+        the number of HP properties.
 
     target_year : int
         Use target variables derived
         from data up to target year as ground truths.
+        Requires the feature "HP_INSTALLED" to extract
+        the number of HP properties.
 
     postcode_level : str, default="POSTCODE_UNIT"
         Postcode level on which to aggregate features.
@@ -429,7 +435,7 @@ def get_aggregated_temp_data(
         postcode for postcode in postcode_levels if postcode != postcode_level
     ]
 
-    # Get data for data up to t (source year) and t+1 (target year)
+    # Get data for data up to t (source year) and t+n (target year)
     source_year = feature_engineering.filter_by_year(
         df, "BUILDING_ID", source_year, selection="latest entry", up_to=True
     )
@@ -437,28 +443,25 @@ def get_aggregated_temp_data(
         df, "BUILDING_ID", target_year, selection="latest entry", up_to=True
     )
 
-    # Drop unnecessary features
-    source_year = source_year.drop(columns=drop_features + ["BUILDING_ID"])
-
-    # Encode aggregated features
-    source_year = data_aggregation.encode_aggregated_features(
-        source_year, postcode_level, ordinal_features, ["HP_INSTALLED"]
-    )
-
     # Get target variables (growth and coverage)
     target_variables = data_aggregation.get_target_variables(
-        df, source_year, target_year, postcode_level, normalise="total"
+        df, source_year, target_year, postcode_level, normalize_by="total"
     )
 
-    # Drop the variable HP_INSTALLED as it is no longer relevant
-    source_year.drop(columns=["HP_INSTALLED"], inplace=True)
+    # Drop unnecessary features
+    source_year = source_year.drop(
+        columns=drop_features + ["BUILDING_ID", "HP_INSTALLED"]
+    )
+
+    # Aggregate and encode features
+    source_year = data_aggregation.aggregate_and_encode_features(
+        source_year, postcode_level, ordinal_features
+    )
 
     # Merge with target variables
     source_year = pd.merge(
         source_year,
-        target_variables[
-            ["HP_COVERAGE_CURRENT", "HP_COVERAGE_FUTURE", "GROWTH", postcode_level]
-        ],
+        target_variables,
         on=postcode_level,
     )
 
@@ -467,7 +470,6 @@ def get_aggregated_temp_data(
         target_variables.loc[target_variables["GROWTH"] < 0.0][postcode_level]
     )
     source_year = source_year[~source_year[postcode_level].isin(samples_to_discard)]
-
     return source_year
 
 
