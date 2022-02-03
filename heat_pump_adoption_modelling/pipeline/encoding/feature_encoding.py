@@ -223,7 +223,7 @@ def feature_encoding_pipeline(
     df,
     ordinal_features,
     reduce_categories=True,
-    onehot_features=None,
+    onehot_features="auto",
     unaltered_features=None,
     drop_features=None,
 ):
@@ -240,7 +240,7 @@ def feature_encoding_pipeline(
     reduce_categories : bool, default=True
         Whether or not merge categories of cateogrical features.
 
-    onehot_feaetures : list, default="auto"
+    onehot_features : list, default="auto"
         Features to one-hot encode.
         If set to "auto", suitable features will be identified automatically.
         To avoid one-hot encoding, use empty list or None.
@@ -284,16 +284,14 @@ def feature_encoding_pipeline(
             ]
 
             # Convert target variables into list
-            target_variables = [] if unaltered_features is None else unaltered_features
-            target_variables = (
-                list(target_variables)
-                if isinstance(target_variables, str)
-                else target_variables
+            keep_features = [] if unaltered_features is None else unaltered_features
+            keep_features = (
+                list(keep_features) if isinstance(keep_features, str) else keep_features
             )
 
             # Select features to be one-hot encoded, exclude target variables
             one_hot_features = [
-                f for f in categorical_features if f not in target_variables
+                f for f in categorical_features if f not in keep_features
             ]
 
         # One-hot encoding

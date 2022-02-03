@@ -48,7 +48,7 @@ glazing_type_red = {
     np.nan: "unknown",
 }
 
-energy_tarrif_red = {
+energy_tariff_red = {
     "Single": "single",
     "dual": "dual",
     "Unknown": "unknown",
@@ -74,7 +74,7 @@ mech_ventilation_red = {
 feature_red_dict = {
     "GLAZED_TYPE": glazing_type_red,
     "MECHANICAL_VENTILATION": mech_ventilation_red,
-    "ENERGY_TARIFF": energy_tarrif_red,
+    "ENERGY_TARIFF": energy_tariff_red,
     "TRANSACTION_TYPE": transaction_type_red,
 }
 

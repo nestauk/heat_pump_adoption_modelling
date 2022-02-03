@@ -323,7 +323,6 @@ def load_preprocessed_epc_data(
     nrows : int, default=None
         Number of rows of file to read.
 
-
     snapshot_data : bool, default=False
         If True, load the snapshot version of the preprocessed EPC data saved in /inputs
         instead of the most recent version in /outputs.
@@ -354,8 +353,12 @@ def load_preprocessed_epc_data(
     if not Path(file_path).is_file():
         extract_data(file_path + ".zip")
 
+    print(file_path)
+
     # Load  data
-    epc_df = pd.read_csv(file_path, usecols=usecols, nrows=nrows, low_memory=low_memory)
+    epc_df = pd.read_csv(
+        file_path, usecols=usecols, nrows=nrows
+    )  # , low_memory=low_memory)
 
     return epc_df
 
