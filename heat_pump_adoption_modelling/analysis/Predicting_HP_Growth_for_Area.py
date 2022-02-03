@@ -38,6 +38,7 @@ from heat_pump_adoption_modelling.pipeline.supervised_model import (
     data_preprocessing,
     hp_growth_prediction,
     hp_status_prediction,
+    prediction_pipeline,
 )
 from heat_pump_adoption_modelling.pipeline.preprocessing import (
     data_cleaning,
@@ -63,13 +64,17 @@ from ipywidgets import interact
 
 # %%
 # If preloaded file is not yet available:
-# epc_df = data_preprocessing.epc_sample_loading(subset="5m", preload=True)
-# epc_df = data_preprocessing.data_preprocessing(epc_df, encode_features=False)
+epc_df = data_preprocessing.load_epc_samples(subset="5m", preload=True)
 
+# %%
+epc_df = data_preprocessing.preprocess_data(epc_df, encode_features=False)
+
+# %%
 epc_df = pd.read_csv(
     data_preprocessing.SUPERVISED_MODEL_OUTPUT + "epc_df_5m_preprocessed.csv"
 )
 
+# %%
 epc_df = epc_df.drop(columns=data_preprocessing.drop_features)
 epc_df.head()
 
@@ -77,16 +82,18 @@ epc_df.head()
 drop_features = ["HP_INSTALL_DATE"]
 postcode_level = "POSTCODE_UNIT"
 
+print(epc_df.shape)
 aggr_temp = data_preprocessing.get_aggregated_temp_data(
     epc_df, 2015, 2018, postcode_level, drop_features=drop_features
 )
+print(aggr_temp.shape)
 
 # %% [markdown]
 # ### Get training data and labels
 
 # %%
-X, y = hp_growth_prediction.get_data_with_labels(
-    aggr_temp, ["GROWTH", "HP_COVERAGE_FUTURE"], drop_features=[]
+X, y = prediction_pipeline.get_data_with_labels(
+    aggr_temp, version="HP Growth by Area", drop_features=[]
 )
 
 X.head()
@@ -95,7 +102,9 @@ X.head()
 # ### Train the Predictive Model
 
 # %%
-model = hp_growth_prediction.predict_hp_growth_for_area(X, y, save_predictions=True)
+prediction_pipeline.predict_heat_pump_adoption(
+    X, y, "HP Growth by Area", save_predictions=True
+)
 
 # %% [markdown]
 # ### Error Analysis

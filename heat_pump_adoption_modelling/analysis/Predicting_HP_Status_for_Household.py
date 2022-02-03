@@ -32,6 +32,7 @@ from heat_pump_adoption_modelling.pipeline.supervised_model import (
     data_preprocessing,
     hp_growth_prediction,
     hp_status_prediction,
+    prediction_pipeline,
 )
 
 from heat_pump_adoption_modelling.pipeline.preprocessing import (
@@ -59,17 +60,25 @@ from ipywidgets import interact
 
 # %%
 # If preloaded file is not yet available:
-# epc_df = data_preprocessing.epc_sample_loading(subset="5m", preload=True)
-# epc_df = data_preprocessing.data_preprocessing(epc_df, encode_features=False)
+# epc_df = data_preprocessing.load_epc_samples(subset="5m", preload=True)
+# epc_df = data_preprocessing.preprocess_data(epc_df, encode_features=False)
 
+# %%
+# epc_df = pd.read_csv(data_preprocessing.SUPERVISED_MODEL_OUTPUT + "epc_df_5m_preprocessed.csv")
+# epc_df = data_preprocessing.encode_features_for_hp_status(epc_df)
+# epc_df.head()
+
+# %%
 epc_df = pd.read_csv(
-    data_preprocessing.SUPERVISED_MODEL_OUTPUT + "epc_df_5m_preprocessed.csv"
+    data_preprocessing.SUPERVISED_MODEL_OUTPUT + "epc_df_5m_encoded.csv"
 )
-epc_df = data_preprocessing.feature_encoding_for_hp_status(epc_df)
 epc_df.head()
 
 # %% [markdown]
 # ### Get training data and labels
+
+# %%
+version = "Future HP Status"
 
 # %%
 drop_features = [
@@ -77,11 +86,10 @@ drop_features = [
     "POSTCODE_DISTRICT",
     "POSTCODE_SECTOR",
     "POSTCODE_UNIT",
-    "HP_INSTALL_DATE",
 ]
 
-X, y = hp_status_prediction.get_data_with_labels(
-    epc_df, version="Future HP Status", drop_features=drop_features, balanced_set=True
+X, y = prediction_pipeline.get_data_with_labels(
+    epc_df, version=version, drop_features=drop_features, balanced_set=True
 )
 X.head()
 
@@ -89,13 +97,13 @@ X.head()
 # ### Train the Predictive Model
 
 # %%
-model = hp_status_prediction.predict_heat_pump_status(X, y, save_predictions=True)
+prediction_pipeline.predict_heat_pump_adoption(X, y, version, save_predictions=True)
 
 # %% [markdown]
 # ### Dimensionality Reduction and Feature Coefficients
 
 # %%
-X_scaled = hp_status_prediction.prepr_pipeline_no_pca.fit_transform(X)
+X_scaled = prediction_pipeline.model_settings.prepr_pipeline_no_pca.fit_transform(X)
 
 # Reduce dimensionality to level of 90% explained variance ratio
 X_dim_reduced = plotting_utils.dimensionality_reduction(
@@ -106,13 +114,13 @@ X_dim_reduced = plotting_utils.dimensionality_reduction(
 )
 
 # %%
-hp_status_prediction.coefficient_importance(
-    X, y, "Linear Support Vector Classifier", version="Future HP Status", pca=False
+prediction_pipeline.coefficient_importance(
+    X, y, "Linear Support Vector Classifier", version=version, pca=False
 )
 
 # %%
-hp_status_prediction.coefficient_importance(
-    X, y, "Linear Support Vector Classifier", version="Future HP Status", pca=True
+prediction_pipeline.coefficient_importance(
+    X, y, "Linear Support Vector Classifier", version=version, pca=True
 )
 
 # %% [markdown]
@@ -124,22 +132,27 @@ hp_status_prediction.coefficient_importance(
 # Loading the predictions and errors
 df = pd.read_csv(
     hp_status_prediction.SUPERVISED_MODEL_OUTPUT
-    + "household_based_predictions_with_support_vector_classifier.csv"
+    + "household_based_future_predictions_with_logistic_regression.csv"
 )
 df.head()
 
 # %%
+df["proba 1"].max()
+
+# %%
+tar = "HP_ADDED"
+
 test = df.loc[df["training set"] == False]
 
 social = test["TENURE: rental (social)"] == True
 private = test["TENURE: rental (private)"] == True
 owner_occupied = test["TENURE: owner-occupied"] == True
-high_conf_hp = test["proba 2"] > 0.9
+high_conf_hp = test["proba 1"] > 0.9
 
-false_positives = (test["prediction"] == True) & (test["ground truth"] == False)
-false_negatives = (test["prediction"] == False) & (test["ground truth"] == True)
-true_positives = (test["prediction"] == True) & (test["ground truth"] == True)
-true_negatives = (test["prediction"] == False) & (test["ground truth"] == False)
+false_positives = (test[tar + ": prediction"] == True) & (test[tar] == False)
+false_negatives = (test[tar + ": prediction"] == False) & (test[tar] == True)
+true_positives = (test[tar + ": prediction"] == True) & (test[tar] == True)
+true_negatives = (test[tar + ": prediction"] == False) & (test[tar] == False)
 
 print(social.shape)
 print(private.shape)
@@ -147,3 +160,7 @@ print(owner_occupied.shape)
 
 # %%
 test[true_positives & owner_occupied & high_conf_hp]
+
+# %%
+
+# %%
