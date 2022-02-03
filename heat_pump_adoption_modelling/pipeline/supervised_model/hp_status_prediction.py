@@ -84,8 +84,8 @@ def get_HP_status_changes(df):
 
     Return
     ---------
-    future_hp_status: pandas.DataFrame
-        Dataframe with future heat pump status."""
+    df_with_hp_status: pandas.DataFrame
+        Dataframe with added future heat pump status."""
 
     # Get properties with multiple entries
     multiple_entry_epcs = df.loc[df["N_ENTRIES_BUILD_ID"] >= 2]
@@ -99,8 +99,8 @@ def get_HP_status_changes(df):
     )
 
     # Heat pump status now / in the past
-    latest_epc["NOW_HP"] = latest_epc["HP_INSTALLED"]
-    first_epc["PAST_HP"] = first_epc["HP_INSTALLED"]
+    latest_epc.rename(columns={"HP_INSTALLED": "NOW_HP"}, inplace=True)
+    first_epc.rename(columns={"HP_INSTALLED": "PAST_HP"}, inplace=True)
 
     # Merging before/after
     before_after_status = pd.merge(
@@ -110,45 +110,49 @@ def get_HP_status_changes(df):
     )
 
     # Heat pump was added in the meantime
-    before_after_status["HP_ADDED"] = (before_after_status["NOW_HP"] == True) & (
-        before_after_status["PAST_HP"] == False
-    )
-
-    # Heat pump was removed in the meantime
-    before_after_status["HP_REMOVED"] = (before_after_status["NOW_HP"] == False) & (
-        before_after_status["PAST_HP"] == True
-    )
-
-    # Heat pump at both times
-    before_after_status["ALWAYS_HP"] = (before_after_status["NOW_HP"] == True) & (
-        before_after_status["PAST_HP"] == True
-    )
-
-    # No heat pump at either time
-    before_after_status["NEVER_HP"] = (before_after_status["NOW_HP"] == False) & (
-        before_after_status["PAST_HP"] == False
+    before_after_status["HP_ADDED"] = (before_after_status["NOW_HP"]) & (
+        ~before_after_status["PAST_HP"]
     )
 
     # Get future heat pump status
-    del first_epc["PAST_HP"]
-    future_hp_status = pd.merge(first_epc, before_after_status, on=["BUILDING_ID"])
-
-    future_hp_status = future_hp_status.loc[(future_hp_status["PAST_HP"] == False)]
-
-    # Drop unnecesary columns
-    future_hp_status = future_hp_status.drop(
-        columns=["PAST_HP", "NOW_HP", "HP_REMOVED", "ALWAYS_HP", "NEVER_HP"]
+    df_with_hp_status = pd.merge(
+        first_epc,
+        before_after_status[["BUILDING_ID", "HP_ADDED"]],
+        on=["BUILDING_ID"],
     )
 
-    return future_hp_status
+    # Exclude samples that had a HP from the very start
+    df_with_hp_status = df_with_hp_status.loc[(df_with_hp_status["PAST_HP"] == False)]
+
+    # Drop unnecesary columns
+    df_with_hp_status = df_with_hp_status.drop(columns=["PAST_HP"])
+
+    return df_with_hp_status
 
 
-def balance_set(X, target_variable, ratio=0.90):
+def balance_set(X, target_variable, false_ratio=0.9):
     """Balance the training set.
-    If ratio set to 0.9, then 90% of the training data
-    will have "False/No HP Installed" as a label."""
+    If false ratio set to 0.9, then 90% of the training data
+    will have "False/No HP Installed" as a label.
 
-    multiplicator = ratio / (1 - ratio)
+    Parameters
+    ----------
+    X: pandas.DataFrame
+        Training set.
+
+    target_variable : str
+        Variable/feature that is going to be predicted.
+
+    false_ratio : float, default=0.9
+        When re-balancing the set, use the false_ratio
+        to determine the amount of False labels.
+
+    Return
+    ---------
+    X: pandas.DataFrame
+        Re-balanced training set."""
+
+    multiplier = false_ratio / (1 - false_ratio)
 
     # Seperate samples with and without heat pumps
     X_true = X.loc[X[target_variable] == True]
@@ -158,7 +162,7 @@ def balance_set(X, target_variable, ratio=0.90):
     X_false = X_false.sample(frac=1)
 
     # Get the appropriate amount of "false" samples
-    X_false = X_false[: int(X_true.shape[0] * multiplicator)]
+    X_false = X_false[: int(X_true.shape[0] * multiplier)]
 
     # Concatenate "true" and "false" samples
     X = pd.concat([X_true, X_false], axis=0)
@@ -197,6 +201,8 @@ def get_data_with_labels(
     y : pandas.Dataframe
         Labels / ground truth."""
 
+    df = df.sample(frac=1)
+
     # For the current status, get latest EPC entry only
     if version == "Current HP Status":
 
@@ -218,9 +224,11 @@ def get_data_with_labels(
     # Drop columns that are all NaN (not expected)
     X = X.dropna(axis="columns", how="all")
 
-    # Balance the training set
+    # Balance the feature set
     if balanced_set:
         X = balance_set(X, target_variable)
+
+    X.reset_index(inplace=True, drop=True)
 
     # Select the label / ground truth
     y = X[target_variable]
@@ -264,7 +272,7 @@ def train_and_evaluate(
         Feature names for training features.
 
     cv : int, default=5
-        Cross validation, by default 5-fold.
+        Number of cross validations, by default 5-fold.
 
     Return
     ---------
@@ -305,8 +313,6 @@ def train_and_evaluate(
         )
     )
 
-    # print(model.coef_, model.intercept_)
-
     scores = cross_validate(
         model,
         X_train,
@@ -317,13 +323,13 @@ def train_and_evaluate(
     )
 
     print()
-    print("10-fold Cross Validation: Train \n---------\n")
+    print("{}-fold Cross Validation: Train \n---------\n".format(cv))
     print("Accuracy:", round(scores["train_accuracy"].mean(), 2))
     print("F1 Score:", round(scores["train_f1"].mean(), 2))
     print("Recall:", round(scores["train_recall"].mean(), 2))
     print("Precision:", round(scores["train_precision"].mean(), 2))
     print()
-    print("10-fold Cross Validation: Test \n---------\n")
+    print("{}-fold Cross Validation: Test \n---------\n".format(cv))
     print("Accuracy:", round(scores["test_accuracy"].mean(), 2))
     print("F1 Score:", round(scores["test_f1"].mean(), 2))
     print("Recall:", round(scores["test_recall"].mean(), 2))
@@ -342,7 +348,7 @@ def predict_heat_pump_status(
     Parameters
     ----------
     X: pandas.DataFrame
-        Training data.
+        Feature data.
 
     y: pandas.DataFrame
         Labels / ground truth.
@@ -354,11 +360,6 @@ def predict_heat_pump_status(
         Save the predictions, errors and other information for error analysis.
 
     Return: None"""
-
-    # Reset indices and create new index row
-    X.reset_index(drop=True, inplace=True)
-    indices = np.arange(X.shape[0])
-    X["index"] = np.arange(X.shape[0])
 
     # Save original training data (with all columns, e.g. POSTCODE, target variables)
     if save_predictions:
@@ -382,17 +383,17 @@ def predict_heat_pump_status(
     X_prep = prepr_pipeline.fit_transform(X)
 
     # Split into train and test sets
-    X_train, X_test, y_train, y_test, indices_train, indices_test = train_test_split(
-        X_prep, y, indices, test_size=0.1, random_state=42, stratify=y
+    X_train, X_test, y_train, y_test, indices_train, _ = train_test_split(
+        X_prep, y, list(X.index), test_size=0.1, random_state=42, stratify=y
     )
 
     X["training set"] = False
-    X.at[indices_train, "training set"] = True
+    X.loc[indices_train, "training set"] = True
 
     # Mark training samples
     if save_predictions:
         original_df["training set"] = False
-        original_df.at[indices_train, "training set"] = True
+        original_df.loc[indices_train, "training set"] = True
 
     # For each model train, make predictions and evaluate
     for model in model_dict.keys():
@@ -449,75 +450,3 @@ def predict_heat_pump_status(
             )
 
     return trained_models
-
-
-def coefficient_importance(X, y, model_name, version="Future HP Status", pca=False):
-    """Plot the coefficient importance for features used to train model.
-
-    Parameters
-    ----------
-    X: pandas.DataFrame
-        Training data.
-
-    y: pandas.DataFrame
-        Labels / ground truth.
-
-    model_name : str
-        Model name
-
-    version : str, default='Future HP Status'
-        Target variable.
-        Options: Future HP Status, Current HP Status
-
-    pca : bool, default=False
-        Whether or not to use PCA on features before training.
-
-    Return: None"""
-
-    # Preprocessing pipeline with or without PCA
-    if pca:
-        X_prep = prepr_pipeline.fit_transform(X)
-        pca_tag = "using PCA"
-    else:
-        X_prep = prepr_pipeline_no_pca.fit_transform(X)
-        pca_tag = ""
-
-    # Split into train and test sets
-    X_train, X_test, y_train, y_test = train_test_split(
-        X_prep, y, test_size=0.1, random_state=42, stratify=y
-    )
-
-    # Train model
-    model = model_dict[model_name]
-    model.set_params(**best_params[model_name])
-    model.fit(X_train, y_train)
-
-    # Evaluation
-    acc = cross_val_score(model, X_train, y_train, cv=5, scoring="accuracy")
-    f1 = cross_val_score(model, X_train, y_train, cv=5, scoring="f1")
-
-    print("5-fold Cross Validation\n---------\n")
-    print("Accuracy:", round(acc.mean(), 2))
-    print("F1 Score:", round(f1.mean(), 2))
-
-    # Get feature names
-    if pca:
-        feature_names = np.array(["PC " + str(num) for num in range(X_train.shape[1])])
-    else:
-        feature_names = np.array(X.columns)
-
-    # Plot the classifier's coefficients for each feature and label
-    plotting_utils.plot_feature_coefficients(
-        model,
-        feature_names,
-        ["HP Installed"],
-        "{}: Coefficient Contributions {}".format(version, pca_tag),
-    )
-
-    # Plot most important features
-    plotting_utils.get_most_important_coefficients(
-        model,
-        feature_names,
-        "{}: Coefficient Importance {}".format(version, pca_tag),
-        X_prep,
-    )

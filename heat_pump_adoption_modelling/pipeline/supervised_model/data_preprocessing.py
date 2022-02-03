@@ -7,6 +7,7 @@ Preprocess EPC and MCS data before feeding it to supervised model.
 
 # Import
 
+from re import L
 from heat_pump_adoption_modelling.getters import epc_data, deprivation_data
 from heat_pump_adoption_modelling import PROJECT_DIR, get_yaml_config, Path
 
@@ -65,9 +66,6 @@ drop_features = [
     "Country",
     "original_address",
     "FIRST_HP_MENTION",
-    "INSPECTION_YEAR",
-    "HP_INSTALL_YEAR",
-    "FIRST_HP_MENTION_YEAR",
     "MCS_AVAILABLE",
     "HAS_HP_AT_SOME_POINT",
     "HP_TYPE",
@@ -87,7 +85,11 @@ dtypes = config["dtypes"]
 
 def select_samples_by_postcode_completeness(df, min_samples=5000000):
     """Select a subset with a minimum specified size from the given dataframe.
-    The sample consists of all records from a random selection of postcodes in the dataframe."
+    The sample consists of all records from a random selection of postcodes in the dataframe.
+
+    Note that the minimal samples will be selected from the non-deduplicated EPC dataset.
+    Some may be filtered out later during deduplication and preprocessing.
+    So if at least 5M samples are required AFTER preprocessing, increase the min_samples number.
 
     Parameters
     ----------
@@ -124,6 +126,8 @@ def select_samples_by_postcode_completeness(df, min_samples=5000000):
 
     # Select samples with postcodes
     df = df.loc[df["POSTCODE"].isin(postcodes)]
+
+    return df
 
 
 def get_mcs_install_dates(epc_df):
@@ -170,12 +174,12 @@ def get_mcs_install_dates(epc_df):
     mcs_data.columns = ["HP_INSTALL_DATE", "Type of HP", "original_address"]
 
     # Get the MCS install dates
-    mcs_data["HP_INSTALL_DATE"] = (
+    mcs_data["HP_INSTALL_DATE"] = pd.to_datetime(
         mcs_data["HP_INSTALL_DATE"]
         .str.strip()
         .str.lower()
-        .replace(r"-", "", regex=True)
-        .astype("float")
+        .replace(r"-", "", regex=True),
+        format="%Y%m%d",
     )
 
     # Create a date dict from MCS data and apply to EPC data
@@ -186,7 +190,7 @@ def get_mcs_install_dates(epc_df):
     return epc_df
 
 
-def manage_hp_install_dates(df):
+def manage_hp_install_dates(df, verbose=True):
     """Manage heat pump install dates given by EPC and MCS.
 
     Parameters
@@ -202,20 +206,16 @@ def manage_hp_install_dates(df):
     # Get the MCS install dates for EPC properties
     df = get_mcs_install_dates(df)
 
+    # Transform INSPECTION_DATE_AS_NUM to datetime, later no longer needed
+    df["INSPECTION_DATE"] = pd.to_datetime(
+        df["INSPECTION_DATE_AS_NUM"].replace(-1, np.nan), format="%Y%m%d"
+    )
     # Get the first heat pump mention for each property
     first_hp_mention = (
-        df.loc[df["HP_INSTALLED"] == True]
-        .groupby("BUILDING_ID")
-        .min(["INSPECTION_DATE_AS_NUM"])
-        .reset_index()[["INSPECTION_DATE_AS_NUM", "BUILDING_ID"]]
+        df.loc[df["HP_INSTALLED"]].groupby("BUILDING_ID")["INSPECTION_DATE"].min()
     )
-    first_hp_mention.columns = ["FIRST_HP_MENTION", "BUILDING_ID"]
-    df = pd.merge(df, first_hp_mention, on="BUILDING_ID", how="outer")
 
-    # Get inspection, install and fist mention years
-    df["INSPECTION_YEAR"] = round(df["INSPECTION_DATE_AS_NUM"] / 10000.0)
-    df["HP_INSTALL_YEAR"] = round(df["HP_INSTALL_DATE"] / 10000.0)
-    df["FIRST_HP_MENTION_YEAR"] = round(df["FIRST_HP_MENTION"] / 10000.0)
+    df["FIRST_HP_MENTION"] = df["BUILDING_ID"].map(dict(first_hp_mention))
 
     # If no HP Install date, set MCS availabibility to False
     df["MCS_AVAILABLE"] = np.where(df["HP_INSTALL_DATE"].isna(), False, True)
@@ -224,104 +224,89 @@ def manage_hp_install_dates(df):
     df["HAS_HP_AT_SOME_POINT"] = np.where(df["FIRST_HP_MENTION"].isna(), False, True)
 
     # HP entry conditions
-    no_mcs_or_epc = (~df["MCS_AVAILABLE"]) & (df["HP_INSTALLED"] == False)
-    no_mcs_but_epc_hp = (~df["MCS_AVAILABLE"]) & (df["HP_INSTALLED"] == True)
-    mcs_and_epc_hp = (df["MCS_AVAILABLE"]) & (df["HP_INSTALLED"] == True)
-    no_epc_but_mcs_hp = (df["MCS_AVAILABLE"]) & (df["HP_INSTALLED"] == False)
-    either_hp = (df["MCS_AVAILABLE"]) | (df["HP_INSTALLED"] == True)
+    no_mcs_or_epc = (~df["MCS_AVAILABLE"]) & (~df["HP_INSTALLED"])
+    no_mcs_but_epc_hp = (~df["MCS_AVAILABLE"]) & (df["HP_INSTALLED"])
+    mcs_and_epc_hp = (df["MCS_AVAILABLE"]) & (df["HP_INSTALLED"])
+    no_epc_but_mcs_hp = (df["MCS_AVAILABLE"]) & (~df["HP_INSTALLED"])
+    either_hp = (df["MCS_AVAILABLE"]) | (df["HP_INSTALLED"])
+    epc_entry_before_mcs = df["INSPECTION_DATE"] < df["HP_INSTALL_DATE"]
 
-    print("Total", df.shape)
-    print("MCS and EPC", df[mcs_and_epc_hp].shape)
-    print("no MCS or EPC", df[no_mcs_or_epc].shape)
-    print("either", df[either_hp].shape)
-    print("no MCS but EPC", df[no_mcs_but_epc_hp].shape)
-    print("no epc but mcs", df[no_epc_but_mcs_hp].shape)
+    if verbose:
 
-    # Was inspection year before/after/same year as install year?
-    # epc_entry_before_mcs = df["INSPECTION_YEAR"] < df["HP_INSTALL_YEAR"]
-    # mcs_before_epc_entry = df["INSPECTION_YEAR"] > df["HP_INSTALL_YEAR"]
-    # epc_entry_same_as_mcs = df["INSPECTION_YEAR"] == df["HP_INSTALL_YEAR"]
-    epc_entry_before_mcs = df["INSPECTION_YEAR"] < df["HP_INSTALL_YEAR"]
+        print("Total", df.shape[0])
+        print("MCS and EPC", df[mcs_and_epc_hp].shape[0])
+        print("no MCS or EPC", df[no_mcs_or_epc].shape[0])
+        print("either", df[either_hp].shape[0])
+        print("no MCS but EPC", df[no_mcs_but_epc_hp].shape[0])
+        print("no epc but mcs", df[no_epc_but_mcs_hp].shape[0])
 
-    print(
-        "no HP mention: epc_entry_before mcs",
-        df[no_epc_but_mcs_hp & epc_entry_before_mcs].shape,
-    )
+        print(
+            "no HP mention: epc_entry_before mcs",
+            df[no_epc_but_mcs_hp & epc_entry_before_mcs].shape[0],
+        )
 
-    print(
-        "no HP mention: epc_entry_after/same mcs",
-        df[no_epc_but_mcs_hp & ~epc_entry_before_mcs].shape,
-    )
+        print(
+            "no HP mention: epc_entry_after/same mcs",
+            df[no_epc_but_mcs_hp & ~epc_entry_before_mcs].shape[0],
+        )
 
-    print(
-        "EPC HP mention: epc_entry_before mcs",
-        df[mcs_and_epc_hp & epc_entry_before_mcs].shape,
-    )
+        print(
+            "EPC HP mention: epc_entry_before mcs",
+            df[mcs_and_epc_hp & epc_entry_before_mcs].shape[0],
+        )
 
-    print(
-        "EPC HP mention: epc_entry_after/same mcs",
-        df[mcs_and_epc_hp & ~epc_entry_before_mcs].shape,
-    )
-    # -----
+        print(
+            "EPC HP mention: epc_entry_after/same mcs",
+            df[mcs_and_epc_hp & ~epc_entry_before_mcs].shape[0],
+        )
+
+    # Handling the various cases
+    # For completeness' sake, all cases are listed
+    # although not all require changes to the data.
+    # ---------------------------
+
     # NO MCS/EPC HP entry
-    # No heat pump, no install date
-    df["HP_INSTALLED"] = np.where((no_mcs_or_epc), False, df["HP_INSTALLED"])
-    df["HP_INSTALL_DATE"] = np.where((no_mcs_or_epc), np.nan, df["HP_INSTALL_DATE"])
+    # --> No heat pump, no install date
+    # No changes to data required.
 
     # -----
+
     # No MCS entry but EPC HP entry:
-    # Heat pump: yes
-    # Install date: first HP mention
-    df["HP_INSTALLED"] = np.where((no_mcs_but_epc_hp), True, df["HP_INSTALLED"])
+    # --> HP: yes (already set), install date: first HP mention
+
     df["HP_INSTALL_DATE"] = np.where(
-        (no_mcs_but_epc_hp), df["FIRST_HP_MENTION"], df["HP_INSTALL_DATE"]
+        no_mcs_but_epc_hp, df["FIRST_HP_MENTION"], df["HP_INSTALL_DATE"]
     )
 
     # -----
+
     # MCS and EPC HP entry, with same year EPC entry or later
-    # HP: yes, MCS install date
-    df["HP_INSTALLED"] = np.where(
-        (mcs_and_epc_hp & ~epc_entry_before_mcs), True, df["HP_INSTALLED"]
-    )
+    # --> HP: yes,  install date: MCS install date
+    # No changes to data required.
 
     # -----
+
     # MCS and EPC HP entry, EPC entry before MCS install
-    # # We want to discard that option as it should not happen!
+    # ! We want to discard that option as it should not happen!
+    # Set HP to False and Install Date to NA
+
     df["HP_INSTALLED"] = np.where(
         (mcs_and_epc_hp & epc_entry_before_mcs), False, df["HP_INSTALLED"]
     )
     df["HP_INSTALL_DATE"] = np.where(
-        (mcs_and_epc_hp & epc_entry_before_mcs), np.nan, df["HP_INSTALL_DATE"]
+        (mcs_and_epc_hp & epc_entry_before_mcs),
+        np.datetime64("NaT"),
+        df["HP_INSTALL_DATE"],
     )
 
-    # # Heat pump: yes
-    # # Install date: first HP mention or MCS install date, earlier of the two
-    # df["HP_INSTALLED"] = np.where((mcs_and_epc_hp), True, df["HP_INSTALLED"])
-    # df["HP_INSTALL_DATE"] = np.where(
-    #     (mcs_and_epc_hp),
-    #     df[["FIRST_HP_MENTION", "HP_INSTALL_DATE"]].min(axis=1),
-    #     df["HP_INSTALL_DATE"],
-    # )
     # -----
 
     # MCS but no EPC HP, with same year EPC entry or later
-    # Heat pump: yes
-    # Install date: no need to change HP Install Date
+    # Heat pump: yes, install date: MCS install date (already set)
 
     df["HP_INSTALLED"] = np.where(
         (no_epc_but_mcs_hp & ~epc_entry_before_mcs), True, df["HP_INSTALLED"]
     )
-
-    # # ---
-    # # MCS but no EPC HP, with MCS before EPC entry
-    # # We want to discard that option as it should not happen!
-
-    # df["HP_INSTALLED"] = np.where(
-    #     (no_epc_but_mcs_hp & mcs_before_epc_entry), False, df["HP_INSTALLED"]
-    # )
-    # df["HP_INSTALL_DATE"] = np.where(
-    #     (no_epc_but_mcs_hp & mcs_before_epc_entry), np.nan, df["HP_INSTALL_DATE"]
-    # )
 
     # ---
     # MCS but no EPC HP with EPC entry before MCS
@@ -342,41 +327,12 @@ def manage_hp_install_dates(df):
         (no_epc_but_mcs_hp & epc_entry_before_mcs), False, df["HP_INSTALLED"]
     )
     df["HP_INSTALL_DATE"] = np.where(
-        (no_epc_but_mcs_hp & epc_entry_before_mcs), np.nan, df["HP_INSTALL_DATE"]
+        (no_epc_but_mcs_hp & epc_entry_before_mcs),
+        np.datetime64("NaT"),
+        df["HP_INSTALL_DATE"],
     )
 
     df = pd.concat([df, no_future_hp_entry])
-
-    df["INSPECTION_YEAR"] = round(df["INSPECTION_DATE_AS_NUM"] / 10000.0)
-    df["HP_INSTALL_YEAR"] = round(df["HP_INSTALL_DATE"] / 10000.0)
-    df["FIRST_HP_MENTION_YEAR"] = round(df["FIRST_HP_MENTION"] / 10000.0)
-
-    print("Total", df.shape)
-    print("MCS and EPC", df[mcs_and_epc_hp].shape)
-    print("no MCS or EPC", df[no_mcs_or_epc].shape)
-    print("either", df[either_hp].shape)
-    print("no MCS but EPC", df[no_mcs_but_epc_hp].shape)
-    print("no epc but mcs", df[no_epc_but_mcs_hp].shape)
-
-    print(
-        "no HP mention: epc_entry_before mcs",
-        df[no_epc_but_mcs_hp & epc_entry_before_mcs].shape,
-    )
-
-    print(
-        "no HP mention: epc_entry_after/same mcs",
-        df[no_epc_but_mcs_hp & ~epc_entry_before_mcs].shape,
-    )
-
-    print(
-        "EPC HP mention: epc_entry_before mcs",
-        df[mcs_and_epc_hp & epc_entry_before_mcs].shape,
-    )
-
-    print(
-        "EPC HP mention: epc_entry_after/same mcs",
-        df[mcs_and_epc_hp & ~epc_entry_before_mcs].shape,
-    )
 
     return df
 
@@ -431,9 +387,7 @@ def get_aggregated_temp_data(
     ]
 
     # Add unnecessary postcode levels to drop features
-    drop_features += [
-        postcode for postcode in postcode_levels if postcode != postcode_level
-    ]
+    drop_features += [level for level in postcode_levels if level != postcode_level]
 
     # Get data for data up to t (source year) and t+n (target year)
     source_year = feature_engineering.filter_by_year(
@@ -473,7 +427,7 @@ def get_aggregated_temp_data(
     return source_year
 
 
-def epc_sample_loading(subset="5m", usecols=None, preload=True):
+def load_epc_samples(subset="5m", usecols=None, preload=True):
     """Load respective subset of EPC samples.
 
     Parameters
@@ -529,7 +483,7 @@ def epc_sample_loading(subset="5m", usecols=None, preload=True):
     return epc_df
 
 
-def feature_encoding_for_hp_status(epc_df, subset="5m"):
+def encode_features_for_hp_status(epc_df, subset="5m"):
     """Feature encode the EPC dataset for the HP status predictions.
 
     Parameters
@@ -561,6 +515,7 @@ def feature_encoding_for_hp_status(epc_df, subset="5m"):
             "HP_INSTALLED",
             "N_ENTRIES_BUILD_ID",
             "POSTCODE_AREA",
+            "HP_INSTALL_DATE",
         ],
         drop_features=drop_features,
     )
@@ -573,7 +528,7 @@ def feature_encoding_for_hp_status(epc_df, subset="5m"):
     return epc_df
 
 
-def data_preprocessing(epc_df, encode_features=False, subset="5m"):
+def preprocess_data(epc_df, encode_features=False, subset="5m"):
     """Load EPC and MCS data, fix heat pump install dates, encode features.
 
     Parameters
@@ -593,8 +548,6 @@ def data_preprocessing(epc_df, encode_features=False, subset="5m"):
     ---------
     epc_df : pandas.DataFrame:
         Accordingly preprocessed EPC dataset."""
-
-    FIGPATH = SUPERVISED_MODEL_FIG_PATH
 
     # Add the IMD info
     imd_df = deprivation_data.get_gb_imd_data()
@@ -647,8 +600,8 @@ def main():
     # Loading the data and preprocessing (5m subset)
     # =================================================
 
-    # epc_df = epc_sample_loading(subset="5m", preload=True)
-    # epc_df = data_preprocessing(epc_df, encode_features=False)
+    # epc_df = load_epc_samples(subset="5m", preload=True)
+    # epc_df = preprocess_data(epc_df, encode_features=False)
 
     # Equivalent to:
     epc_df = pd.read_csv(
@@ -659,7 +612,7 @@ def main():
     # =================================================
 
     # epc_df = pd.read_csv(SUPERVISED_MODEL_OUTPUT + "epc_df_preprocessed.csv")
-    # epc_df = data_preprocessing.feature_encoding_for_hp_status(epc_df)
+    # epc_df = encode_features_for_hp_status(epc_df)
 
     # Equivalent to:
     epc_df = pd.read_csv(
@@ -676,7 +629,7 @@ def main():
     drop_features = ["HP_INSTALL_DATE"]
     postcode_level = "POSTCODE_UNIT"
 
-    aggr_temp = get_aggregated_temp_data(
+    get_aggregated_temp_data(
         epc_df, 2015, 2018, postcode_level, drop_features=drop_features
     )
 

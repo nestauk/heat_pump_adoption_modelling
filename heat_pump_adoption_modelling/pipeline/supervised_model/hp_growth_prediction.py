@@ -16,16 +16,12 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
 
-from sklearn.linear_model import LinearRegression
-from sklearn.tree import DecisionTreeRegressor
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import LinearRegression
-from sklearn.linear_model import LogisticRegression
-from sklearn.linear_model import SGDClassifier
 
-from sklearn.preprocessing import LabelEncoder, MinMaxScaler
-from sklearn.model_selection import train_test_split
-from sklearn.decomposition import PCA, TruncatedSVD
+# from sklearn.linear_model import LinearRegression
+# from sklearn.linear_model import LogisticRegression
+# from sklearn.linear_model import SGDClassifier
+# from sklearn.tree import DecisionTreeRegressor
 
 from sklearn.model_selection import cross_val_score
 from sklearn import tree
@@ -129,18 +125,10 @@ def train_and_evaluate(
     )
 
     # For each set, evaluate performance
-    for set_name in ["train", "test"]:
-
-        # Get training or test data
-        if set_name == "train":
-            preds = pred_train
-            sols = y_train
-            set_name = "Training Set"
-
-        elif set_name == "test":
-            preds = pred_test
-            sols = y_test
-            set_name = "Test Set"
+    for preds, sols, set_name in [
+        (pred_train, y_train, "Training Set"),
+        (pred_test, y_test, "Test Set"),
+    ]:
 
         print("\n-----------------\n{}\n-----------------".format(set_name))
         print()
@@ -179,9 +167,9 @@ def train_and_evaluate(
 
         # Get, print and plot the scores
         scores = cross_val_score(
-            model, X_train, y_train, cv=cv, scoring="neg_mean_squared_error"
+            model, X_train, y_train, cv=cv, scoring="mean_squared_error"
         )
-        rsme_scores = np.sqrt(-scores)
+        rsme_scores = np.sqrt(scores)
         plotting_utils.display_scores(rsme_scores)
 
         errors = abs(sols - preds)
@@ -226,9 +214,12 @@ def get_data_with_labels(df, target_variables, drop_features=[]):
     y : pandas.Dataframe
         Labels / ground truth."""
 
-    # Get the
+    # Get the feature and target data
     X = df.copy()
-    y = X[target_variables]  # np.array(X[target_variables])
+    X = df.sample(frac=1)
+    X.reset_index(inplace=True, drop=True)
+
+    y = X[target_variables]
 
     # Remove unnecessary features
     for col in target_variables + drop_features:

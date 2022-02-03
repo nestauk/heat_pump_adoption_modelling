@@ -332,11 +332,11 @@ def plot_feature_coefficients(classifier, feature_names, label_set, title):
     cbar = x_fig.colorbar(im_0, cax=cbar_ax)
     cbar.ax.tick_params(labelsize=24)
 
-    # plt.title(title)
-    plt.savefig(FIG_PATH / (title + ".png"), format="png", dpi=500)
-
     # Show
     plt.show()
+
+    # plt.title(title)
+    plt.savefig(FIG_PATH / (title + ".png"), format="png", dpi=500)
 
 
 def map_percentage_to_bin(predictions, solutions, interval=5):
@@ -383,7 +383,21 @@ def scatter_plot(x, y, title, xlabel, ylabel):
     plt.savefig(FIG_PATH / (title + ".png"), format="png", dpi=500)
 
 
-def display_scores(scores):
-    print("Scores:", scores)
-    print("Mean:", scores.mean())
-    print("Standard deviation:", scores.std())
+def display_scores(scores, cv="Multi"):
+
+    train_scores = [s for s in scores.keys() if "train" in s]
+    test_scores = [s for s in scores.keys() if "test" in s]
+
+    for score_set, set_name in [
+        (train_scores, "Training Set"),
+        (test_scores, "Test Set"),
+    ]:
+
+        print("\n{}-fold Cross Validation: {}\n{}\n".format(cv, set_name, 40 * "-"))
+
+        for score in score_set:
+            score_name = score.replace("test_", "")
+            score_name = score_name.replace("train_", "")
+            print(score_name, "mean:", round(scores[score].mean(), 2))
+
+    print()

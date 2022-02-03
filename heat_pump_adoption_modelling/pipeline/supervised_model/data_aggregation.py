@@ -19,7 +19,7 @@ from heat_pump_adoption_modelling.pipeline.preprocessing import feature_engineer
 
 def split_postcode_by_level(postcode, level, with_space=True):
 
-    postcode = postcode.split()
+    postcode = postcode.strip()
 
     seperation = " " if with_space else ""
 
@@ -27,8 +27,8 @@ def split_postcode_by_level(postcode, level, with_space=True):
         return re.findall(r"([A-Z]+)", postcode)[0]
 
     else:
-        part_1 = postcode[:-3].split()
-        part_2 = postcode[-3:].split()
+        part_1 = postcode[:-3].strip()
+        part_2 = postcode[-3:].strip()
 
         if level == "district":
             return part_1
