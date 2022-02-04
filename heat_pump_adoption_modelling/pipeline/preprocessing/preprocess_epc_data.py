@@ -188,6 +188,8 @@ def main():
             "GLAZED_TYPE",
             "GLAZED_AREA",
             "EXTENSION_COUNT",
+            "SECONDHEAT_DESCRIPTION",
+            "ADDRESS2",
         ],
         nrows=None,
     )

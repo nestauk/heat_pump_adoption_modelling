@@ -7,7 +7,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.11.4
+#       jupytext_version: 1.13.0
 #   kernelspec:
 #     display_name: epc_data_analysis
 #     language: python
@@ -43,9 +43,9 @@ epc_df = pd.read_csv(str(PROJECT_DIR) + "/inputs/epc_df_complete_preprocessed.cs
 # %%
 import numpy as np
 
-epc_df.loc[
-    (epc_df["HP_INSTALLED"] == False) & ~(epc_df["FIRST_HP_MENTION_YEAR"].isna())
-][["HP_INSTALLED", "FIRST_HP_MENTION_YEAR", "BUILDING_ID"]].head()
+epc_df.loc[(epc_df["HP_INSTALLED"] == False) & ~(epc_df["FIRST_HP_MENTION"].isna())][
+    ["HP_INSTALLED", "FIRST_HP_MENTION", "BUILDING_ID"]
+].head()
 
 # %%
 epc_df.loc[epc_df["BUILDING_ID"] == 1036632212202526][
@@ -53,11 +53,16 @@ epc_df.loc[epc_df["BUILDING_ID"] == 1036632212202526][
 ]
 
 # %%
-epc_df["DATE_INT"] = (
-    epc_df["INSPECTION_DATE"]
-    .str.replace("/", "")
-    .apply(feature_engineering.get_date_as_int)
-)
+epc_df.sort_values("INSPECTION_DATE", ascending=True)["INSPECTION_DATE"].head()
+
+# %%
+epc_df["INSPECTION_DATE"] = epc_df["INSPECTION_DATE"].astype("datetime64[ns]")
+epc_df.dtypes
+
+
+# %%
+# epc_df["DATE_INT"] = epc_df['INSPECTION_DATE'].dt.year +epc_df['INSPECTION_DATE'].dt.month +epc_df['INSPECTION_DATE'].dt.day
+
 
 dedupl_epc_df = feature_engineering.filter_by_year(
     epc_df, "BUILDING_ID", year=2021, up_to=True, selection="latest entry"
@@ -78,7 +83,7 @@ dedupl_epc_df["MCS_AVAILABLE"].value_counts()
 
 # %%
 mcs_available = dedupl_epc_df["MCS_AVAILABLE"] == True
-epc_hp_mention = ~(dedupl_epc_df["FIRST_HP_MENTION_YEAR"].isna())
+epc_hp_mention = ~(dedupl_epc_df["FIRST_HP_MENTION"].isna())
 
 # %%
 print("Number of EPC entries:", dedupl_epc_df.shape[0])

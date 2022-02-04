@@ -144,7 +144,7 @@ dtypes:
     "ADDRESS2": str,
     "POSTTOWN": str,
     "POSTCODE": str,
-    "INSPECTION_DATE": str,
+    "INSPECTION_DATE": datetime,
     "LODGEMENT_DATE": str,
     "ENERGY_CONSUMPTION_CURRENT": float,
     "TOTAL_FLOOR_AREA": float,

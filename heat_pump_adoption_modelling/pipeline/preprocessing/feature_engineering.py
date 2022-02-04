@@ -457,9 +457,9 @@ def filter_by_year(df, building_reference, year, up_to=True, selection=None):
     if year != "all" and year is not None:
 
         if up_to:
-            df = df.loc[df["ENTRY_YEAR_INT"] <= year]
+            df = df.loc[df["INSPECTION_DATE"].dt.year <= year]
         else:
-            df = df.loc[df["ENTRY_YEAR_INT"] == year]
+            df = df.loc[df["INSPECTION_DATE"].dt.year == year]
 
     # Filter by selection
     selection_dict = {"first entry": "first", "latest entry": "last"}
@@ -467,7 +467,7 @@ def filter_by_year(df, building_reference, year, up_to=True, selection=None):
     if selection in ["first entry", "latest entry"]:
 
         df = (
-            df.sort_values("INSPECTION_DATE_AS_NUM", ascending=True)
+            df.sort_values("INSPECTION_DATE", ascending=True)
             .drop_duplicates(
                 subset=[building_reference], keep=selection_dict[selection]
             )

@@ -158,13 +158,13 @@ def get_mcs_install_dates(epc_df):
     # Load MCS data
     mcs_data = pd.read_csv(
         MERGED_MCS_EPC,
-        usecols=["date", "tech_type", "original_address"],
+        usecols=["date", "tech_type", "compressed_epc_address"],
     )
 
     # Get original EPC address from MCS/EPC match
-    mcs_data = mcs_data.loc[~mcs_data["original_address"].isna()]
-    mcs_data["original_address"] = (
-        mcs_data["original_address"]
+    mcs_data = mcs_data.loc[~mcs_data["compressed_epc_address"].isna()]
+    mcs_data["compressed_epc_address"] = (
+        mcs_data["compressed_epc_address"]
         .str.strip()
         .str.lower()
         .replace(r"\s+", "", regex=True)

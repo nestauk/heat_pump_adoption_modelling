@@ -112,6 +112,57 @@ prediction_pipeline.predict_heat_pump_adoption(
 # ##### Does not yet have to be reviewed.
 
 # %%
+
+# %% [markdown]
+# Predicting HP Growth by Area...
+#
+# Number of samples: 292391
+# Number of features: 149
+#
+#
+# ******************************
+# Random Forest Regressor GROWTH
+# ******************************
+# Category Accuracy with 5% steps : 0.99
+# Category Accuracy with 5% steps : 0.98
+#
+# Predicting HP Growth by Area...
+#
+# Number of samples: 292391
+# Number of features: 149
+#
+#
+# ******************************
+# Random Forest Regressor
+# ******************************
+# Category Accuracy with 5% steps : 0.99
+#
+# Category Accuracy with 5% steps : 0.98
+#
+#
+# 5-fold Cross Validation: Training Set
+# ----------------------------------------
+#
+# neg_mean_squared_error mean: -0.0
+# max_error mean: -0.46
+# rsme mean: 0.01
+#
+# 5-fold Cross Validation: Test Set
+# ----------------------------------------
+#
+# neg_mean_squared_error mean: -0.0
+# max_error mean: -1.0
+# rsme mean: 0.03
+#
+#
+# ******************************
+# Random Forest Regressor HP COVERAGE
+# ******************************
+# Category Accuracy with 5% steps : 0.97
+# Category Accuracy with 5% steps : 0.93
+#
+
+# %%
 # Load predictions, errors etc.
 df = pd.read_csv(
     hp_growth_prediction.SUPERVISED_MODEL_OUTPUT
