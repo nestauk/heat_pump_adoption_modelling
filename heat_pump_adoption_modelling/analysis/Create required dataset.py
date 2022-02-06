@@ -93,12 +93,9 @@ epc_df = pd.read_csv(
 )
 
 # %%
-epc_df.columns
-
-# %%
-epc_df = data_preprocessing.load_epc_samples(
-    subset="complete", usecols=EPC_PREPROC_FEAT_SELECTION, preload=False
-)
+# epc_df = data_preprocessing.load_epc_samples(
+#    subset="complete", usecols=EPC_PREPROC_FEAT_SELECTION, preload=False
+# )
 
 # %%
 epc_df.shape
@@ -108,19 +105,27 @@ epc_df["MAINHEAT_DESCRIPTION"] = epc_df["MAINHEAT_DESCRIPTION"].str.lower()
 epc_df["SECONDHEAT_DESCRIPTION"] = epc_df["SECONDHEAT_DESCRIPTION"].str.lower()
 
 # %%
-epc_df.loc[epc_df["SECONDHEAT_DESCRIPTION"].str.contains("pumpa teas")][
-    "SECONDHEAT_DESCRIPTION"
-].shape
+epc_df["MAINHEAT_DESCRIPTION"] = epc_df["MAINHEAT_DESCRIPTION"].str.lower()
+epc_df["SECONDHEAT_DESCRIPTION"] = epc_df["SECONDHEAT_DESCRIPTION"].str.lower()
 
-# %%
-epc_df.loc[epc_df["SECONDHEAT_DESCRIPTION"].str.contains("pwmp gwres")][
-    "SECONDHEAT_DESCRIPTION"
-].shape
+epc_df["MAINHEAT_DESCRIPTION"] = epc_df["MAINHEAT_DESCRIPTION"].str.lower()
+epc_df["SECONDHEAT_DESCRIPTION"] = epc_df["SECONDHEAT_DESCRIPTION"].str.lower()
 
-# %%
-epc_df.loc[epc_df["SECONDHEAT_DESCRIPTION"].str.contains("heat pump")][
-    "SECONDHEAT_DESCRIPTION"
-].shape
+print(
+    epc_df.loc[epc_df["SECONDHEAT_DESCRIPTION"].str.contains("heat pump")][
+        "SECONDHEAT_DESCRIPTION"
+    ].shape
+)
+print(
+    epc_df.loc[epc_df["SECONDHEAT_DESCRIPTION"].str.contains("pumpa teas")][
+        "SECONDHEAT_DESCRIPTION"
+    ].shape
+)
+print(
+    epc_df.loc[epc_df["SECONDHEAT_DESCRIPTION"].str.contains("pwmp gwres")][
+        "SECONDHEAT_DESCRIPTION"
+    ].shape
+)
 
 # %%
 epc_df.loc[epc_df["MAINHEAT_DESCRIPTION"].str.contains("pwmp gwres")][
@@ -128,25 +133,24 @@ epc_df.loc[epc_df["MAINHEAT_DESCRIPTION"].str.contains("pwmp gwres")][
 ].unique()
 
 # %%
-epc_df.loc[epc_df["MAINHEAT_DESCRIPTION"].str.contains("pumpa teas")][
-    "MAINHEAT_DESCRIPTION"
-].shape
-
-# %%
-epc_df.loc[epc_df["MAINHEAT_DESCRIPTION"].str.contains("pwmp gwres")][
-    "MAINHEAT_DESCRIPTION"
-].shape
-
-# %%
-epc_df.loc[epc_df["MAINHEAT_DESCRIPTION"].str.contains("heat pump")][
-    "MAINHEAT_DESCRIPTION"
-].shape
+print(
+    epc_df.loc[epc_df["MAINHEAT_DESCRIPTION"].str.contains("pumpa teas")][
+        "MAINHEAT_DESCRIPTION"
+    ].shape
+)
+print(
+    epc_df.loc[epc_df["MAINHEAT_DESCRIPTION"].str.contains("pwmp gwres")][
+        "MAINHEAT_DESCRIPTION"
+    ].shape
+)
+print(
+    epc_df.loc[epc_df["MAINHEAT_DESCRIPTION"].str.contains("heat pump")][
+        "MAINHEAT_DESCRIPTION"
+    ].shape
+)
 
 # %%
 epc_df["HP_INSTALLED"].value_counts()
-
-# %%
-epc_df["SECONDHEAT_DESCRIPTION"].value_counts(dropna=False)
 
 # %%
 epc_df["HP_INSTALLED"] = np.where(
@@ -169,26 +173,45 @@ epc_df["HP_INSTALLED_2nd"].value_counts(dropna=False)
 epc_df["HP_INSTALLED"].value_counts(dropna=False)
 
 # %%
-epc_df.loc[epc_df["HP_INSTALLED"] & (epc_df["HP_INSTALLED_2nd"])].shape
+print(epc_df.loc[epc_df["HP_INSTALLED"] & (epc_df["HP_INSTALLED_2nd"])].shape)
 
 # %%
 epc_df["HP_INSTALLED"] = np.where(
     (epc_df["HP_INSTALLED"]) | (epc_df["HP_INSTALLED_2nd"]), True, False
 )
 
-# %%
 epc_df["HP_INSTALLED"].value_counts(dropna=False)
 
 # %%
-epc_df = data_preprocessing.preprocess_data(
+prep_epc_df = data_preprocessing.preprocess_data(
     epc_df, encode_features=False, subset="complete"
 )
 
 # %%
-print(list(epc_df.columns))
+print(list(prep_epc_df.columns))
+
+# %%
+
 
 # %%
 epc_df.loc[~epc_df["MCS_AVAILABLE"] == True].shape
 
 # %%
 epc_df.loc[epc_df["MCS_AVAILABLE"] == False].shape
+
+# %%
+mcs_df = pd.read_csv(str(PROJECT_DIR) + "/inputs/MCS_data/mcs_epc.csv")
+
+# %%
+mcs_df.shape
+
+# %%
+mcs_df.loc[~mcs_df["compressed_epc_address"].isna()].shape
+
+# %%
+mcs_df.loc[mcs_df["compressed_epc_address"].isna()].shape
+
+# %%
+100 / 96271 * 76934
+
+# %%

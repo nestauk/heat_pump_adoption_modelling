@@ -158,7 +158,15 @@ def get_mcs_install_dates(epc_df):
     # Load MCS data
     mcs_data = pd.read_csv(
         MERGED_MCS_EPC,
-        usecols=["date", "tech_type", "compressed_epc_address"],
+        usecols=[
+            "date",
+            "tech_type",
+            "compressed_epc_address",
+            "address_1",
+            "address_2",
+            "address_3",
+            "postcode",
+        ],
     )
 
     # Get original EPC address from MCS/EPC match
@@ -169,9 +177,16 @@ def get_mcs_install_dates(epc_df):
         .str.lower()
         .replace(r"\s+", "", regex=True)
     )
-
     # Rename columns
-    mcs_data.columns = ["HP_INSTALL_DATE", "Type of HP", "original_address"]
+    mcs_data.columns = [
+        "HP_INSTALL_DATE",
+        "Type of HP",
+        "compressed_epc_address",
+        "MCS address 1",
+        "MCS address 2",
+        "MCS address 3",
+        "MCS postcode",
+    ]
 
     # Get the MCS install dates
     mcs_data["HP_INSTALL_DATE"] = pd.to_datetime(
@@ -184,7 +199,10 @@ def get_mcs_install_dates(epc_df):
 
     # Create a date dict from MCS data and apply to EPC data
     # If no install date is found for address, it assigns NaN
-    date_dict = mcs_data.set_index("original_address").to_dict()["HP_INSTALL_DATE"]
+    date_dict = mcs_data.set_index("compressed_epc_address").to_dict()[
+        "HP_INSTALL_DATE"
+    ]
+    print(date_dict)
     epc_df["HP_INSTALL_DATE"] = epc_df["original_address"].map(date_dict)
 
     return epc_df
@@ -271,7 +289,7 @@ def manage_hp_install_dates(df, verbose=True):
 
     # -----
 
-    # No MCS entry but EPC HP entry:
+    # No MCS entry but EPC HP entry
     # --> HP: yes (already set), install date: first HP mention
 
     df["HP_INSTALL_DATE"] = np.where(
@@ -280,15 +298,19 @@ def manage_hp_install_dates(df, verbose=True):
 
     # -----
 
-    # MCS and EPC HP entry, with same year EPC entry or later
+    # MCS and EPC HP entry, with EPC entry after MCS installatioon
     # --> HP: yes,  install date: MCS install date
     # No changes to data required.
 
     # -----
 
-    # MCS and EPC HP entry, EPC entry before MCS install
+    # MCS and EPC HP entry, EPC entry before MCS installatioon
     # ! We want to discard that option as it should not happen!
     # Set HP to False and Install Date to NA
+
+    df["EPC HP entry before MCS"] = np.where(
+        (mcs_and_epc_hp & epc_entry_before_mcs), True, False
+    )
 
     df["HP_INSTALLED"] = np.where(
         (mcs_and_epc_hp & epc_entry_before_mcs), False, df["HP_INSTALLED"]
@@ -301,15 +323,28 @@ def manage_hp_install_dates(df, verbose=True):
 
     # -----
 
-    # MCS but no EPC HP, with same year EPC entry or later
-    # Heat pump: yes, install date: MCS install date (already set)
+    # MCS but no EPC HP, with EPC entry after MCS instalation
+    # Should not happen as EPC after MCs installation should show HP!
 
-    df["HP_INSTALLED"] = np.where(
-        (no_epc_but_mcs_hp & ~epc_entry_before_mcs), True, df["HP_INSTALLED"]
+    df["No EPC HP entry after MCS"] = np.where(
+        (no_epc_but_mcs_hp & ~epc_entry_before_mcs), True, False
     )
 
+    df["HP_INSTALLED"] = np.where(
+        (no_epc_but_mcs_hp & ~epc_entry_before_mcs), False, df["HP_INSTALLED"]
+    )
+    df["HP_INSTALL_DATE"] = np.where(
+        (no_epc_but_mcs_hp & ~epc_entry_before_mcs),
+        np.datetime64("NaT"),
+        df["HP_INSTALL_DATE"],
+    )
+
+    # df["HP_INSTALLED"] = np.where(
+    #    (no_epc_but_mcs_hp & ~epc_entry_before_mcs), True, df["HP_INSTALLED"]
+    # )
+
     # ---
-    # MCS but no EPC HP with EPC entry before MCS
+    # MCS but no EPC HP with EPC HP mention before MCS
     # Set current instance to no heat pump
     # but create duplicate with MCS install date if no future EPC HP mention
 
@@ -557,7 +592,9 @@ def preprocess_data(epc_df, encode_features=False, subset="5m"):
 
     # Fix the HP install dates and add different postcode levels
     epc_df = manage_hp_install_dates(epc_df)
+    print(epc_df.columns)
     epc_df = data_aggregation.get_postcode_levels(epc_df)
+    print(epc_df.columns)
     epc_df.to_csv(
         SUPERVISED_MODEL_OUTPUT + "epc_df_{}_preprocessed.csv".format(subset),
         index=False,
