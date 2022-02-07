@@ -197,6 +197,13 @@ no_epc_entry_after_mcs = prep_epc_df.loc[prep_epc_df["No EPC HP entry after MCS"
 no_epc_entry_after_mcs.columns
 
 # %%
+no_epc_entry_after_mcs["DIFF NO EPC AFTER MCS"] = (
+    no_epc_entry_after_mcs["INSPECTION_DATE"]
+    - no_epc_entry_after_mcs["HP_INSTALL_DATE"]
+) > timedelta(days=365)
+no_epc_entry_after_mcs["DIFF NO EPC AFTER MCS"].value_counts()
+
+# %%
 no_epc_entry_after_mcs.shape
 
 # %%
@@ -222,6 +229,15 @@ no_epc_entry_after_mcs["MAINHEAT_DESCRIPTION"].value_counts()
 epc_entry_before_mcs = prep_epc_df.loc[prep_epc_df["EPC HP entry before MCS"]]
 
 # %%
+from datetime import timedelta
+
+epc_entry_before_mcs["DIFF EPC BEFORE MCS"] = (
+    epc_entry_before_mcs["HP_INSTALL_DATE"] - epc_entry_before_mcs["INSPECTION_DATE"]
+) > timedelta(days=356)
+epc_entry_before_mcs["DIFF EPC BEFORE MCS"].value_counts()
+# epc_entry_before_mcs.head()
+
+# %%
 epc_entry_before_mcs[
     [
         "IMD Rank",
@@ -236,6 +252,26 @@ epc_entry_before_mcs[
         "HP_INSTALL_DATE",
     ]
 ].head(50)
+
+# %%
+epc_entry_before_mcs.loc[epc_entry_before_mcs["DIFF"]][
+    [
+        "IMD Decile",
+        "ADDRESS1",
+        "ADDRESS2",
+        "POSTCODE",
+        "MCS address",
+        "MAINHEAT_DESCRIPTION",
+        "SECONDHEAT_DESCRIPTION",
+        "TRANSACTION_TYPE",
+        "INSPECTION_DATE",
+        "HP_INSTALL_DATE",
+        "DIFF",
+    ]
+]
+
+# %%
+epc_entry_before_mcs["IMD Decile"].value_counts()
 
 # %%
 epc_df.loc[~epc_df["MCS_AVAILABLE"] == True].shape
