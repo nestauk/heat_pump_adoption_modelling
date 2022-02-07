@@ -191,7 +191,51 @@ prep_epc_df = data_preprocessing.preprocess_data(
 print(list(prep_epc_df.columns))
 
 # %%
+no_epc_entry_after_mcs = prep_epc_df.loc[prep_epc_df["No EPC HP entry after MCS"]]
 
+# %%
+no_epc_entry_after_mcs.columns
+
+# %%
+no_epc_entry_after_mcs.shape
+
+# %%
+no_epc_entry_after_mcs[
+    [
+        "IMD Rank",
+        "ADDRESS1",
+        "ADDRESS2",
+        "POSTCODE",
+        "MCS address",
+        "MAINHEAT_DESCRIPTION",
+        "SECONDHEAT_DESCRIPTION",
+        "TRANSACTION_TYPE",
+        "INSPECTION_DATE",
+        "HP_INSTALL_DATE",
+    ]
+].tail(50)
+
+# %%
+no_epc_entry_after_mcs["MAINHEAT_DESCRIPTION"].value_counts()
+
+# %%
+epc_entry_before_mcs = prep_epc_df.loc[prep_epc_df["EPC HP entry before MCS"]]
+
+# %%
+epc_entry_before_mcs[
+    [
+        "IMD Rank",
+        "ADDRESS1",
+        "ADDRESS2",
+        "POSTCODE",
+        "MCS address",
+        "MAINHEAT_DESCRIPTION",
+        "SECONDHEAT_DESCRIPTION",
+        "TRANSACTION_TYPE",
+        "INSPECTION_DATE",
+        "HP_INSTALL_DATE",
+    ]
+].head(50)
 
 # %%
 epc_df.loc[~epc_df["MCS_AVAILABLE"] == True].shape

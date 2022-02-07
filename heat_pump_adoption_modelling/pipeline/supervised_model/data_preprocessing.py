@@ -169,6 +169,30 @@ def get_mcs_install_dates(epc_df):
         ],
     )
 
+    # Rename columns
+    mcs_data.rename(
+        columns={
+            "date": "HP_INSTALL_DATE",
+            "tech_type": "Type of HP",
+            "compressed_epc_address": "compressed_epc_address",
+            "address_1": "MCS address 1",
+            "address_2": "MCS address 2",
+            "address_3": "MCS address 3",
+            "postcode": "MCS postcode",
+        },
+        inplace=True,
+    )
+
+    mcs_data["MCS_ADDRESS"] = (
+        mcs_data["MCS address 1"]
+        + " "
+        + mcs_data["MCS address 2"]
+        + " "
+        + mcs_data["MCS address 3"]
+        + " "
+        + mcs_data["MCS postcode"]
+    )
+
     # Get original EPC address from MCS/EPC match
     mcs_data = mcs_data.loc[~mcs_data["compressed_epc_address"].isna()]
     mcs_data["compressed_epc_address"] = (
@@ -177,16 +201,6 @@ def get_mcs_install_dates(epc_df):
         .str.lower()
         .replace(r"\s+", "", regex=True)
     )
-    # Rename columns
-    mcs_data.columns = [
-        "HP_INSTALL_DATE",
-        "Type of HP",
-        "compressed_epc_address",
-        "MCS address 1",
-        "MCS address 2",
-        "MCS address 3",
-        "MCS postcode",
-    ]
 
     # Get the MCS install dates
     mcs_data["HP_INSTALL_DATE"] = pd.to_datetime(
@@ -202,8 +216,14 @@ def get_mcs_install_dates(epc_df):
     date_dict = mcs_data.set_index("compressed_epc_address").to_dict()[
         "HP_INSTALL_DATE"
     ]
-    print(date_dict)
+
+    original_address_dict = mcs_data.set_index("compressed_epc_address").to_dict()[
+        "MCS_ADDRESS"
+    ]
+
     epc_df["HP_INSTALL_DATE"] = epc_df["original_address"].map(date_dict)
+
+    epc_df["MCS address"] = epc_df["original_address"].map(original_address_dict)
 
     return epc_df
 
@@ -312,14 +332,16 @@ def manage_hp_install_dates(df, verbose=True):
         (mcs_and_epc_hp & epc_entry_before_mcs), True, False
     )
 
-    df["HP_INSTALLED"] = np.where(
-        (mcs_and_epc_hp & epc_entry_before_mcs), False, df["HP_INSTALLED"]
-    )
-    df["HP_INSTALL_DATE"] = np.where(
-        (mcs_and_epc_hp & epc_entry_before_mcs),
-        np.datetime64("NaT"),
-        df["HP_INSTALL_DATE"],
-    )
+    # just for now commented out
+
+    # df["HP_INSTALLED"] = np.where(
+    #     (mcs_and_epc_hp & epc_entry_before_mcs), False, df["HP_INSTALLED"]
+    # )
+    # df["HP_INSTALL_DATE"] = np.where(
+    #     (mcs_and_epc_hp & epc_entry_before_mcs),
+    #     np.datetime64("NaT"),
+    #     df["HP_INSTALL_DATE"],
+    # )
 
     # -----
 
@@ -330,14 +352,15 @@ def manage_hp_install_dates(df, verbose=True):
         (no_epc_but_mcs_hp & ~epc_entry_before_mcs), True, False
     )
 
-    df["HP_INSTALLED"] = np.where(
-        (no_epc_but_mcs_hp & ~epc_entry_before_mcs), False, df["HP_INSTALLED"]
-    )
-    df["HP_INSTALL_DATE"] = np.where(
-        (no_epc_but_mcs_hp & ~epc_entry_before_mcs),
-        np.datetime64("NaT"),
-        df["HP_INSTALL_DATE"],
-    )
+    # just for now commented out
+    # df["HP_INSTALLED"] = np.where(
+    #     (no_epc_but_mcs_hp & ~epc_entry_before_mcs), False, df["HP_INSTALLED"]
+    # )
+    # df["HP_INSTALL_DATE"] = np.where(
+    #     (no_epc_but_mcs_hp & ~epc_entry_before_mcs),
+    #     np.datetime64("NaT"),
+    #     df["HP_INSTALL_DATE"],
+    # )
 
     # df["HP_INSTALLED"] = np.where(
     #    (no_epc_but_mcs_hp & ~epc_entry_before_mcs), True, df["HP_INSTALLED"]
