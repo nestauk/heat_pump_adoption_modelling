@@ -31,6 +31,23 @@ def reformat_postcode(df):
     return df
 
 
+def standardise_dates(df, features):
+
+    for feature in features:
+
+        df[feature] = df[feature].str.replace(r"00(\d\d)", r"20\1", regex=True)
+
+        df[feature] = pd.to_datetime(df[feature], errors="coerce")
+
+        df.loc[
+            (df[feature].dt.year > config["CURRENT_YEAR"] + 1)
+            & (df[feature].dt.year < 2018),
+            feature,
+        ] = np.datetime64("NaT")
+
+    return df
+
+
 def date_formatter(date):
     """Reformat the date to the format year-month-day.
 
@@ -563,8 +580,6 @@ def clean_epc_data(df):
         Standarised and cleaned EPC dataframe."""
 
     column_to_function_dict = {
-        "LODGEMENT_DATE": date_formatter,
-        "INSPECTION_DATE": date_formatter,
         "TENURE": standardise_tenure,
         "CONSTRUCTION_AGE_BAND": standardise_constr_age,
         "WINDOWS_ENERGY_EFF": standardise_efficiency,
@@ -576,6 +591,8 @@ def clean_epc_data(df):
         "FLOOR_LEVEL": standardise_floor_level,
         "GLAZED_AREA": standardise_glazed_area,
     }
+
+    date_features = ["LODGEMENT_DATE", "INSPECTION_DATE"]
 
     numeric_features = [
         "ENERGY_CONSUMPTION_CURRENT",
@@ -629,18 +646,20 @@ def clean_epc_data(df):
 
     # Replace values such as INVALID! or NODATA!
     for column in df.columns:
-        for invalid in invalid_values:
-            if column in numeric_features:
-                df[column] = df[column].replace(invalid, np.nan)
-                if column not in ["WIND_TURBINE_COUNT", "FLOOR_LEVEL"] + make_numeric:
-                    df[column] = df[column].mask(df[column] < 0.0)
-            else:
-                df[column] = df[column].replace(invalid, "unknown")
+        if column in numeric_features:
+            df[column] = df[column].replace(invalid_values, np.nan)
+
+            if column not in ["WIND_TURBINE_COUNT", "FLOOR_LEVEL"] + make_numeric:
+                df[column] = df[column].mask(df[column] < 0.0)
+        else:
+            df[column] = df[column].replace(invalid_values, "unknown")
 
     for column in df.columns:
         if column in make_numeric:
             df[column] = pd.to_numeric(df[column])
             df[column] = df[column].mask(df[column] < 0.0)
+
+    df = standardise_dates(df, date_features)
 
     if "CONSTRUCTION_AGE_BAND" in df.columns:
         df["CONSTRUCTION_AGE_BAND_ORIGINAL"] = df["CONSTRUCTION_AGE_BAND"].apply(

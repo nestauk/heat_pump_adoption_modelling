@@ -120,10 +120,7 @@ EPC_PREPROC_FEAT_SELECTION:
     "BUILT_FORM",
     "PROPERTY_TYPE",
     "COUNTRY",
-    "ENTRY_YEAR",
-    "ENTRY_YEAR_INT",
     "INSPECTION_DATE",
-    "INSPECTION_DATE_AS_NUM",
     "UNIQUE_ADDRESS",
     "BUILDING_ID",
     "N_ENTRIES",
@@ -144,8 +141,8 @@ dtypes:
     "ADDRESS2": str,
     "POSTTOWN": str,
     "POSTCODE": str,
-    "INSPECTION_DATE": datetime,
-    "LODGEMENT_DATE": str,
+    "INSPECTION_DATE": "datetime64[ns]",
+    "LODGEMENT_DATE": "datetime64[ns]",
     "ENERGY_CONSUMPTION_CURRENT": float,
     "TOTAL_FLOOR_AREA": float,
     "CURRENT_ENERGY_EFFICIENCY": int,
@@ -195,7 +192,6 @@ dtypes:
     "CONSTRUCTION_AGE_BAND_ORIGINAL": str,
     "ENTRY_YEAR": str,
     "ENTRY_YEAR_INT": float,
-    "INSPECTION_DATE_AS_NUM": int,
     "UNIQUE_ADDRESS": str,
     "BUILDING_ID": str,
     "N_ENTRIES": str,
@@ -208,3 +204,6 @@ dtypes:
     "ENERGY_RATING_CAT": str,
     "DIFF_POT_ENERGY_RATING": float,
   }
+
+parse_dates:
+  ["INSPECTION_DATE", "LODGEMENT_DATE", "HP_INSTALL_DATE", "FIRST_HP_MENTION"]

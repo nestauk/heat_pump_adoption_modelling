@@ -44,6 +44,9 @@ from heat_pump_adoption_modelling.pipeline.supervised_model.utils import (
 )
 from heat_pump_adoption_modelling.pipeline.supervised_model.utils import kepler
 
+from datetime import timedelta, datetime
+
+
 import pandas as pd
 from keplergl import KeplerGl
 import matplotlib as mpl
@@ -68,10 +71,7 @@ EPC_PREPROC_FEAT_SELECTION = [
     "TRANSACTION_TYPE",
     "BUILT_FORM",
     "PROPERTY_TYPE",
-    "ENTRY_YEAR",
-    "ENTRY_YEAR_INT",
     "INSPECTION_DATE",
-    "INSPECTION_DATE_AS_NUM",
     "UNIQUE_ADDRESS",
     "BUILDING_ID",
     "N_ENTRIES",
@@ -90,15 +90,35 @@ epc_df = pd.read_csv(
     str(PROJECT_DIR)
     + "/outputs/EPC_data/preprocessed_data/Q2_2021/EPC_GB_preprocessed.csv",
     usecols=EPC_PREPROC_FEAT_SELECTION,
+    parse_dates=["INSPECTION_DATE"],
+)
+epc_df["HP_INSTALLED"].value_counts(dropna=False)
+
+# %%
+prep_epc_df = data_preprocessing.preprocess_data(
+    epc_df, encode_features=False, subset="complete"
 )
 
 # %%
-# epc_df = data_preprocessing.load_epc_samples(
-#    subset="complete", usecols=EPC_PREPROC_FEAT_SELECTION, preload=False
-# )
+mcs_df = pd.read_csv(str(PROJECT_DIR) + "/inputs/MCS_data/mcs_epc.csv")
+print(mcs_df.shape)
 
 # %%
-epc_df.shape
+no_nan_mcs = mcs_df.loc[~mcs_df["compressed_epc_address"].isna()]
+no_nan_mcs.shape
+
+# %%
+dedupl_mcs = no_nan_mcs.sort_values("date", ascending=True).drop_duplicates(
+    subset=["compressed_epc_address"], keep="first"
+)
+dedupl_mcs.shape
+
+# %%
+epc_df = pd.read_csv(
+    str(PROJECT_DIR)
+    + "/outputs/EPC_data/preprocessed_data/Q2_2021/EPC_GB_preprocessed.csv",
+    usecols=EPC_PREPROC_FEAT_SELECTION,
+)
 
 # %%
 epc_df["MAINHEAT_DESCRIPTION"] = epc_df["MAINHEAT_DESCRIPTION"].str.lower()
@@ -139,7 +159,7 @@ print(
     ].shape
 )
 print(
-    epc_df.loc[epc_df["MAINHEAT_DESCRIPTION"].str.contains("pwmp gwres")][
+    epc_df.loc[epc_df["MAINHEAT_DESCRIPTION"].str.lower().str.contains("pwmp gwres")][
         "MAINHEAT_DESCRIPTION"
     ].shape
 )
@@ -183,12 +203,29 @@ epc_df["HP_INSTALLED"] = np.where(
 epc_df["HP_INSTALLED"].value_counts(dropna=False)
 
 # %%
+epc_df["INSPECTION_DATE"].unique()
+
+# %%
+from datetime import datetime
+
+epc_df = pd.read_csv(
+    str(PROJECT_DIR)
+    + "/outputs/EPC_data/preprocessed_data/Q2_2021/EPC_GB_preprocessed.csv",
+    usecols=EPC_PREPROC_FEAT_SELECTION,
+    parse_dates=["INSPECTION_DATE"],
+)
+epc_df["HP_INSTALLED"].value_counts(dropna=False)
+
+# %%
+epc_df["INSPECTION_DATE"].unique()
+
+# %%
 prep_epc_df = data_preprocessing.preprocess_data(
     epc_df, encode_features=False, subset="complete"
 )
 
 # %%
-print(list(prep_epc_df.columns))
+prep_epc_df["EPC HP entry before MCS"].value_counts(dropna=False)
 
 # %%
 no_epc_entry_after_mcs = prep_epc_df.loc[prep_epc_df["No EPC HP entry after MCS"]]
@@ -197,17 +234,20 @@ no_epc_entry_after_mcs = prep_epc_df.loc[prep_epc_df["No EPC HP entry after MCS"
 no_epc_entry_after_mcs.columns
 
 # %%
-no_epc_entry_after_mcs["DIFF NO EPC AFTER MCS"] = (
+no_epc_entry_after_mcs["MORE THAN 1 YEAR DIFF"] = (
     no_epc_entry_after_mcs["INSPECTION_DATE"]
     - no_epc_entry_after_mcs["HP_INSTALL_DATE"]
 ) > timedelta(days=365)
-no_epc_entry_after_mcs["DIFF NO EPC AFTER MCS"].value_counts()
+no_epc_entry_after_mcs["MORE THAN 1 YEAR DIFF"].value_counts()
 
 # %%
 no_epc_entry_after_mcs.shape
 
 # %%
-no_epc_entry_after_mcs[
+no_epc_entry_after_mcs.loc[
+    (no_epc_entry_after_mcs["MORE THAN 1 YEAR DIFF"])
+    & (no_epc_entry_after_mcs["version"] > 1.0)
+][
     [
         "IMD Rank",
         "ADDRESS1",
@@ -219,42 +259,31 @@ no_epc_entry_after_mcs[
         "TRANSACTION_TYPE",
         "INSPECTION_DATE",
         "HP_INSTALL_DATE",
+        "MORE THAN 1 YEAR DIFF",
+        "version",
     ]
-].tail(50)
+].head(
+    50
+)
 
 # %%
-no_epc_entry_after_mcs["MAINHEAT_DESCRIPTION"].value_counts()
+no_epc_entry_after_mcs.loc[no_epc_entry_after_mcs["MORE THAN 1 YEAR DIFF"]][
+    "alt_type"
+].value_counts()
 
 # %%
 epc_entry_before_mcs = prep_epc_df.loc[prep_epc_df["EPC HP entry before MCS"]]
 
 # %%
-from datetime import timedelta
 
-epc_entry_before_mcs["DIFF EPC BEFORE MCS"] = (
+epc_entry_before_mcs["MORE THAN 1 YEAR DIFF"] = (
     epc_entry_before_mcs["HP_INSTALL_DATE"] - epc_entry_before_mcs["INSPECTION_DATE"]
 ) > timedelta(days=356)
-epc_entry_before_mcs["DIFF EPC BEFORE MCS"].value_counts()
+epc_entry_before_mcs["MORE THAN 1 YEAR DIFF"].value_counts()
 # epc_entry_before_mcs.head()
 
 # %%
-epc_entry_before_mcs[
-    [
-        "IMD Rank",
-        "ADDRESS1",
-        "ADDRESS2",
-        "POSTCODE",
-        "MCS address",
-        "MAINHEAT_DESCRIPTION",
-        "SECONDHEAT_DESCRIPTION",
-        "TRANSACTION_TYPE",
-        "INSPECTION_DATE",
-        "HP_INSTALL_DATE",
-    ]
-].head(50)
-
-# %%
-epc_entry_before_mcs.loc[epc_entry_before_mcs["DIFF"]][
+epc_entry_before_mcs.loc[epc_entry_before_mcs["MORE THAN 1 YEAR DIFF"]][
     [
         "IMD Decile",
         "ADDRESS1",
@@ -266,32 +295,16 @@ epc_entry_before_mcs.loc[epc_entry_before_mcs["DIFF"]][
         "TRANSACTION_TYPE",
         "INSPECTION_DATE",
         "HP_INSTALL_DATE",
-        "DIFF",
+        "version",
     ]
-]
+].head(50)
 
 # %%
-epc_entry_before_mcs["IMD Decile"].value_counts()
+epc_entry_before_mcs.loc[epc_entry_before_mcs["MORE THAN 1 YEAR DIFF"]][
+    "alt_type"
+].value_counts(dropna=False)
 
 # %%
-epc_df.loc[~epc_df["MCS_AVAILABLE"] == True].shape
-
-# %%
-epc_df.loc[epc_df["MCS_AVAILABLE"] == False].shape
-
-# %%
-mcs_df = pd.read_csv(str(PROJECT_DIR) + "/inputs/MCS_data/mcs_epc.csv")
-
-# %%
-mcs_df.shape
-
-# %%
-mcs_df.loc[~mcs_df["compressed_epc_address"].isna()].shape
-
-# %%
-mcs_df.loc[mcs_df["compressed_epc_address"].isna()].shape
-
-# %%
-100 / 96271 * 76934
+epc_entry_before_mcs["n_certificates"].value_counts(dropna=False)
 
 # %%

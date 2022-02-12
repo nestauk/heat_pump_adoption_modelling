@@ -73,7 +73,7 @@ param_grid_dict = {
 }
 
 
-def grid_screening(model_name, X, y, scoring):
+def grid_screening(model_name, X, y, scoring, drop_features):
     """Screen hyper parameters for supervised learning models
     and print out best combiantion.
 
@@ -96,7 +96,7 @@ def grid_screening(model_name, X, y, scoring):
     """
 
     for feat in X.columns:
-        if feat.startswith("POSTCODE"):
+        if feat in drop_features or feat.startswith("POSTCODE"):
             del X[feat]
 
     X_prep = prepr_pipeline.fit_transform(X)

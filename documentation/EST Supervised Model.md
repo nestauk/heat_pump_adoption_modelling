@@ -14,12 +14,6 @@ Data used for this model:
 - Index of Multiple Deprivation: IMD Rank, Income Score, Employment Score
 - MCS data for exact HP installation date
 
-To Do:
-
-- [ ] Add few more description features, e.g. wall cavity type
-- [ ] EPC/MCS: fine-tune merging parameter
-- [ ] Include more socio-demographic data (e.g. Acorn)
-
 ## Data Processing
 
 ### Feature Inspection and Selection
@@ -34,7 +28,7 @@ This chart shows an example for highly correlated features.
 
 <img src="./img/Highly correlated features.jpg" width="75%">
 
-While interesting to analyse the correlations between features, we only discard few features using this method with very high correlations: `LODGEMENT_DATE`, `INSPECTION_DATE` (as string), `CURR_ENERGY_RATING_NUM`, `ENERGY_RATING_CAT`, `UNIQUE_ADDRESS`, `MAINHEAT_DESCRIPTION`, `MAINHEAT_SYSTEM`.
+While interesting to analyse the correlations between features, we only discard few features using this method with very high correlations: `LODGEMENT_DATE`, `CURR_ENERGY_RATING_NUM`, `ENERGY_RATING_CAT`, `UNIQUE_ADDRESS`, `MAINHEAT_DESCRIPTION`, `MAINHEAT_SYSTEM`.
 
 ### Integration of MCS Installation Dates
 

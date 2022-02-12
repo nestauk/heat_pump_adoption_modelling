@@ -166,8 +166,14 @@ def get_mcs_install_dates(epc_df):
             "address_2",
             "address_3",
             "postcode",
+            "version",
+            "new",
+            "n_certificates",
+            "alt_type",
         ],
     )
+
+    mcs_data.fillna({"address_1": "", "address_2": "", "address_3": ""}, inplace=True)
 
     # Rename columns
     mcs_data.rename(
@@ -183,6 +189,9 @@ def get_mcs_install_dates(epc_df):
         inplace=True,
     )
 
+    # Get original EPC address from MCS/EPC match
+    mcs_data = mcs_data.loc[~mcs_data["compressed_epc_address"].isna()]
+
     mcs_data["MCS_ADDRESS"] = (
         mcs_data["MCS address 1"]
         + " "
@@ -193,8 +202,6 @@ def get_mcs_install_dates(epc_df):
         + mcs_data["MCS postcode"]
     )
 
-    # Get original EPC address from MCS/EPC match
-    mcs_data = mcs_data.loc[~mcs_data["compressed_epc_address"].isna()]
     mcs_data["compressed_epc_address"] = (
         mcs_data["compressed_epc_address"]
         .str.strip()
@@ -211,6 +218,11 @@ def get_mcs_install_dates(epc_df):
         format="%Y%m%d",
     )
 
+    # no Nans or "" in compressed_epc_address
+    mcs_data = mcs_data.sort_values("HP_INSTALL_DATE", ascending=True).drop_duplicates(
+        subset=["compressed_epc_address"], keep="first"
+    )
+
     # Create a date dict from MCS data and apply to EPC data
     # If no install date is found for address, it assigns NaN
     date_dict = mcs_data.set_index("compressed_epc_address").to_dict()[
@@ -224,6 +236,22 @@ def get_mcs_install_dates(epc_df):
     epc_df["HP_INSTALL_DATE"] = epc_df["original_address"].map(date_dict)
 
     epc_df["MCS address"] = epc_df["original_address"].map(original_address_dict)
+
+    epc_df["version"] = epc_df["original_address"].map(
+        mcs_data.set_index("compressed_epc_address").to_dict()["version"]
+    )
+
+    epc_df["new"] = epc_df["original_address"].map(
+        mcs_data.set_index("compressed_epc_address").to_dict()["new"]
+    )
+
+    epc_df["n_certificates"] = epc_df["original_address"].map(
+        mcs_data.set_index("compressed_epc_address").to_dict()["n_certificates"]
+    )
+
+    epc_df["alt_type"] = epc_df["original_address"].map(
+        mcs_data.set_index("compressed_epc_address").to_dict()["alt_type"]
+    )
 
     return epc_df
 
@@ -244,10 +272,8 @@ def manage_hp_install_dates(df, verbose=True):
     # Get the MCS install dates for EPC properties
     df = get_mcs_install_dates(df)
 
-    # Transform INSPECTION_DATE_AS_NUM to datetime, later no longer needed
-    df["INSPECTION_DATE"] = pd.to_datetime(
-        df["INSPECTION_DATE_AS_NUM"].replace(-1, np.nan), format="%Y%m%d"
-    )
+    df = df[df["INSPECTION_DATE"].notna()]
+
     # Get the first heat pump mention for each property
     first_hp_mention = (
         df.loc[df["HP_INSTALLED"]].groupby("BUILDING_ID")["INSPECTION_DATE"].min()
@@ -255,11 +281,45 @@ def manage_hp_install_dates(df, verbose=True):
 
     df["FIRST_HP_MENTION"] = df["BUILDING_ID"].map(dict(first_hp_mention))
 
+    df["HP_AT_FIRST"] = df["BUILDING_ID"].map(
+        df.loc[df.groupby("BUILDING_ID")["INSPECTION_DATE"].idxmin()]
+        .set_index("BUILDING_ID")
+        .to_dict()["HP_INSTALLED"]
+    )
+
+    df["HP_AT_LAST"] = df["BUILDING_ID"].map(
+        df.loc[df.groupby("BUILDING_ID")["INSPECTION_DATE"].idxmax()]
+        .set_index("BUILDING_ID")
+        .to_dict()["HP_INSTALLED"]
+    )
+
+    print(df.shape)
+    print(df["HP_AT_FIRST"].shape)
+
+    # # print("get here")
+
+    # df = df.sort_values(by=["BUILDING_ID", "INSPECTION_DATE"], ascending=True).groupby(
+    #     "BUILDING_ID"
+    # )
+    # first_dict = dict(df.first().unstack()["HP_INSTALLED"])
+    # last_dict = dict(df.last().unstack()["HP_INSTALLED"])
+
+    # df["HP_AT_FIRST"] = df["BUILDING_ID"].map(first_dict)
+    # df["HP_AT_LAST"] = df["BUILDING_ID"].map(last_dict)
+
+    # df['new column name'] = df['column name'].apply(lambda x: 'value if condition is met' if x condition else 'value if condition is not met')
+
+    df["HP_LOST"] = df["HP_AT_FIRST"] & ~df["HP_AT_LAST"]
+    df["HP_ADDED"] = ~df["HP_AT_FIRST"] & df["HP_AT_LAST"]
+    df["HP_IN_THE_MIDDLE"] = (
+        ~df["HP_AT_FIRST"] & ~df["HP_AT_LAST"] & ~df["FIRST_HP_MENTION"].isna()
+    )
+
     # If no HP Install date, set MCS availabibility to False
-    df["MCS_AVAILABLE"] = np.where(df["HP_INSTALL_DATE"].isna(), False, True)
+    df["MCS_AVAILABLE"] = ~df["HP_INSTALL_DATE"].isna()
 
     # If no first mention of HP, then set has
-    df["HAS_HP_AT_SOME_POINT"] = np.where(df["FIRST_HP_MENTION"].isna(), False, True)
+    df["HAS_HP_AT_SOME_POINT"] = ~df["FIRST_HP_MENTION"].isna()
 
     # HP entry conditions
     no_mcs_or_epc = (~df["MCS_AVAILABLE"]) & (~df["HP_INSTALLED"])
@@ -373,24 +433,26 @@ def manage_hp_install_dates(df, verbose=True):
 
     # Get samples for which there is no future EPC HP mention
     # and create duplicate with MCS install data
+
     no_future_hp_entry = df[
         no_epc_but_mcs_hp & epc_entry_before_mcs & (df["HAS_HP_AT_SOME_POINT"] == False)
     ].copy()
 
     # Update heat pump data and add newly created entries to other data
     no_future_hp_entry["HP_INSTALLED"] = True
-    no_future_hp_entry["HAS_HP_AT_SOME_POINT"] == True
+    no_future_hp_entry["HAS_HP_AT_SOME_POINT"] = True
+    no_future_hp_entry["INSPECTION_DATE"] = no_future_hp_entry["HP_INSTALL_DATE"]
 
-    df["HP_INSTALLED"] = np.where(
-        (no_epc_but_mcs_hp & epc_entry_before_mcs), False, df["HP_INSTALLED"]
-    )
+    # df["HP_INSTALLED"] = np.where(
+    #     (no_epc_but_mcs_hp & epc_entry_before_mcs), False, df["HP_INSTALLED"]
+    # )
     df["HP_INSTALL_DATE"] = np.where(
         (no_epc_but_mcs_hp & epc_entry_before_mcs),
         np.datetime64("NaT"),
         df["HP_INSTALL_DATE"],
     )
 
-    df = pd.concat([df, no_future_hp_entry])
+    # df = pd.concat([df, no_future_hp_entry])
 
     return df
 
@@ -515,7 +577,8 @@ def load_epc_samples(subset="5m", usecols=None, preload=True):
 
         if preload:
             epc_df = pd.read_csv(
-                SUPERVISED_MODEL_OUTPUT + "epc_df_{}.csv".format(subset), dtype=dtypes
+                SUPERVISED_MODEL_OUTPUT + "epc_df_{}.csv".format(subset),
+                parse_dates=["INSPECTION_DATE"],
             )
 
         # Select a subset of at least 5m samples keeping postcodes complete
@@ -615,9 +678,8 @@ def preprocess_data(epc_df, encode_features=False, subset="5m"):
 
     # Fix the HP install dates and add different postcode levels
     epc_df = manage_hp_install_dates(epc_df)
-    print(epc_df.columns)
     epc_df = data_aggregation.get_postcode_levels(epc_df)
-    print(epc_df.columns)
+
     epc_df.to_csv(
         SUPERVISED_MODEL_OUTPUT + "epc_df_{}_preprocessed.csv".format(subset),
         index=False,

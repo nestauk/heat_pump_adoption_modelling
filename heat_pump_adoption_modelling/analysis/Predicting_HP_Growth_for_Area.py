@@ -64,7 +64,7 @@ from ipywidgets import interact
 
 # %%
 # If preloaded file is not yet available:
-epc_df = data_preprocessing.load_epc_samples(subset="5m", preload=True)
+epc_df = data_preprocessing.load_epc_samples(subset="5m", preload=False)
 
 # %%
 epc_df = data_preprocessing.preprocess_data(epc_df, encode_features=False)
@@ -79,7 +79,17 @@ epc_df = epc_df.drop(columns=data_preprocessing.drop_features)
 epc_df.head()
 
 # %%
-drop_features = ["HP_INSTALL_DATE"]
+epc_df.columns
+
+# %%
+drop_features = [
+    "HP_INSTALL_DATE",
+    "MCS address",
+    "version",
+    "EPC HP entry before MCS",
+    "No EPC HP etnry after MCS",
+]
+
 postcode_level = "POSTCODE_UNIT"
 
 print(epc_df.shape)

@@ -345,6 +345,16 @@ def get_heating_features(df, fine_grained_HP_types=False):
     df["HP_INSTALLED"] = has_hp_tags
     df["HP_TYPE"] = hp_types
 
+    # Also consider secondheat description and other languages
+    df["HP_INSTALLED"] = np.where(
+        (df["HP_INSTALLED"])
+        | (df["SECONDHEAT_DESCRIPTION"].str.lower().str.contains("heat pump"))
+        | (df["MAINHEAT_DESCRIPTION"].str.lower().str.contains("pumpa teas"))
+        | (df["MAINHEAT_DESCRIPTION"].str.lower().str.contains("pwmp gwres")),
+        True,
+        False,
+    )
+
     return df
 
 
@@ -609,7 +619,7 @@ def get_additional_features(df):
     df : pandas.DataFrame
         Updated dataframe with new features."""
 
-    df = get_date_features(df)
+    # df = get_date_features(df)
 
     df = get_unique_building_id(df)
     df = get_building_entries(df)
