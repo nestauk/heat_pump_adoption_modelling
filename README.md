@@ -1,76 +1,47 @@
 # Heat Pump Adoption Modelling
 
-### Geospatial Model
+## Contents
 
-##### Premises
+[Overview](#overview)
 
-- Outcome: number/rate of heat pump adoptions in a prescribed area over a fixed period of time (say, a year)
-- Geography: postcode level data.
-- Time window:
-- Explanatory variables: household characteristics (building type, total floor area, ...), energy-related (gas availability, energy rating, ...), socio-demographic (postcode IMD, …)
-- Study design: official register data.
+[Modelling methods](#methods)
 
-##### Model
+[Setup instructions](#setup)
 
-- Model and link function: a Poisson regression model with log link will allow to model counts/rates (given a proper offset)
-- Structured spatial component: intrinsic Conditional Auto Regressive (iCAR) at the postcode-level
-- Variable transformation: non-linear relationships with the outcome will be allowed by entering the covariates via splines, when the interpretation of attached coefficients will not be of primary interest.
+<a name="overview"></a>
+## Overview
 
-##### Outcomes
+This repository holds the code used for Nesta’s collaboration with the Energy Saving Trust about **modelling the uptake of heat pumps in the UK**. The aim of this project is to
+* understand the profile of households who have already installed a heat pump,
+* predict which households or areas could form the next wave of heat pump adopters, and
+* make some progress towards predicting the shape and rate of heat pump growth in the UK over the coming years.
 
-- Outcome predictions at the desired geographical level will be available and will possess uncertainty measures around them.
-- Analysis of model’s residuals will allow to identify areas that, after adjustment for the explanatory variables, still exhibit behaviours that are extreme with respect to the overall average, as estimated by the model.
-- Exceedance probabilities, i.e. an estimate of the probability of exceeding a given threshold of likelihood to adopt a heat pump solution.
-- Visualisation: all of the above can be represented on maps, which can help improve readability of the findings and aid dissemination to a wider, non-technical audience.
+More background information about the project can be found [here](https://www.nesta.org.uk/project/speeding-heat-pump-adoption/).
 
-### Supervised Model
+The primary data source is the Energy Performance Certificate (EPC) register. More details about this dataset can be found [here](https://epc.opendatacommunities.org/) (for England and Wales) and [here](https://statistics.gov.scot/resource?uri=http%3A%2F%2Fstatistics.gov.scot%2Fdata%2Fdomestic-energy-performance-certificates) (for Scotland).
 
-##### Premises
+Two different modelling approaches are used: a **supervised machine learning** based model and a **geostatistical Bayesian** model. Further technical details can be found below.
 
-- Target: expected % increase in heat pump adoptions in a prescribed area at time (year) t
-  -Geography: postcode level data
-- Features: household characteristics (building type, total floor area, ...), energy-related (gas availability, energy rating, ...), socio-demographic (postcode IMD, …). Some features will be taken as a snapshot at t-1, while others will be taken for time period t-n to t-1 (where n is a parameter to be tuned)
+This repository will not be maintained beyond March 2022 (other than occasional refactoring/tidying) due to the discontinuation of the project.
 
-##### Model
 
-- Model: linear regression as a baseline. Investigate more specific models such as XGBoost regressor.
-- Pipeline: Split data into target year (2019?) and feature years. Use variables to build additional features and use to predict % of heat pumps in a postcode (or % increase) for the target year. Feature engineering might include snapshots of variables and growth rates.
-- Prediction: Use model to predict for 2020\*
+<a name="methods"></a>
+## Modelling methods
 
-In subsequent iterations we might explore VAR models or variations on LSTM neural networks.
+### Supervised model
 
-\*we know that 2020 was a highly disrupted year, but we can still make and inspect predictions
+### Geostatistical model
 
-##### Outcomes
+This approach uses a geostatistical framework to model heat pump uptake on a postcode level. After processing the household-level EPC data and aggregating certain features by postcode, [INLA](https://www.r-inla.org/) is used to model the distribution of heat pump counts. The number of heat pumps in postcode i is modelled as a Binomial(n<sub>i</sub>, p<sub>i</sub>) random variable where n<sub>i</sub> is the number of properties in the postcode and p<sub>i</sub> is the fitted probability, determined by a combination of the EPC-derived features and a spatial process encoding the relationship between adjacent postcodes. Model diagnostic plots are then produced to investigate the relationship between the features and the fitted values, including choropleth maps to analyse spatial patterns.
 
-- Predictions will be available at the post code level and for the year specified.
-- An analysis of the model’s residuals will be used to identify postcodes that adopted significantly more or less heat pumps than expected. In addition they will be used to explore the distribution of error dependent on splits among the features.
-- Investigation of specific model predictions to past growth can be used to further understand the patterns of heat pump adoption.
+**Data sources:**
+- [Postcode district shapefiles](https://longair.net/blog/2021/08/23/open-data-gb-postcode-unit-boundaries)
+- [Postcode centroids](https://osdatahub.os.uk/downloads/open/CodePointOpen?_ga=2.21799097.324920968.1632920662-135460240.1632920662)
+- [Postcode household count estimates](https://www.nomisweb.co.uk/census/2011/postcode_headcounts_and_household_estimates) 
+- EPC: originally from https://epc.opendatacommunities.org/, processed version obtained from Energy Saving Trust
 
-### Nearest Neighbour Search
 
-##### Premises
-
-- Assumption: That post code areas that might adopt heat pumps, but have not already, might be identified through sharing similar characteristics with those that have.
-- Geography: household/postcode level
-- Outcome: Similarity of non-heat pump households/postcodes to those with heat pumps
-
-##### Model
-
-- Pipeline:
-  - Dimensionality reduction of household data
-  - Split into households with and without heat pumps
-  - For each household with a heat pump, find the K nearest neighbours from households without heat pumps
-- Geography: postcode level
-- Outcomes: Similarity of non-heat pump postcodes to households with heat pumps
-
-##### Outputs
-
-- Triangulation with other models to validate and evaluate our approaches by comparing the nearest neighbours detected with the postcodes/households predicted as adopters.
-- Household level predictions where the other approaches yield only postcode level analyses, this method will allow investigation of specific households.
-- Ability to test and explore assumptions about the groups who install heat pumps through combination with further qualitative research
-- Geographic analysis of which groups are more or less prevalent across regions of the UK
-
+<a name="setup"></a>
 ## Setup
 
 - Meet the data science cookiecutter [requirements](http://nestauk.github.io/ds-cookiecutter/quickstart), in brief:
@@ -80,6 +51,11 @@ In subsequent iterations we might explore VAR models or variations on LSTM neura
   - Setup the conda environment
   - Configure pre-commit
   - Configure metaflow to use AWS
+
+Supervised - uses processed EPC data (from asf-core-data)
+
+Geostatistical - relies on EST (proprietary, download from S3)
+
 
 #### Contributor guidelines
 
