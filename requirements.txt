@@ -10,3 +10,4 @@ filelock
 typer
 sh
 keplergl
+asf_core_data@ git+https://github.com/nestauk/asf_core_data#egg=asf_core_data
