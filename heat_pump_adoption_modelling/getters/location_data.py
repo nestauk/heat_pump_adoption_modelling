@@ -36,7 +36,7 @@ def get_postcode_coordinates():
     del postcode_coordinates_df["id"]
 
     # Rename columns to match EPC data
-    location_data_df = postcode_coordinates_df.rename(
+    postcode_coordinates_df = postcode_coordinates_df.rename(
         columns={
             "postcode": "POSTCODE",
             "latitude": "LATITUDE",

@@ -26,6 +26,12 @@ IMD_SCOTLAND_PATH: "/inputs/deprivation_data/Scotland_IMD.csv"
 
 POSTCODE_TO_COORD_PATH: "/inputs/location_data/ukpostcodes_to_coordindates.csv"
 
+MERGED_MCS_EPC: "/inputs/MCS_data/mcs_epc.csv"
+
+SUPERVISED_MODEL_OUTPUT: "/outputs/supervised_model/"
+SUPERVISED_MODEL_FIG_PATH: "/outputs/supervised_model/figures/"
+HEAT_PUMP_COSTS_FIG_PATH: "/outputs/figures/hp_costs/"
+
 EPC_FEAT_SELECTION:
   [
     "ADDRESS1",
@@ -74,6 +80,7 @@ EPC_PREPROC_FEAT_SELECTION:
   [
     "BUILDING_REFERENCE_NUMBER",
     "ADDRESS1",
+    "ADDRESS2",
     "POSTTOWN",
     "POSTCODE",
     "INSPECTION_DATE",
@@ -113,10 +120,7 @@ EPC_PREPROC_FEAT_SELECTION:
     "BUILT_FORM",
     "PROPERTY_TYPE",
     "COUNTRY",
-    "ENTRY_YEAR",
-    "ENTRY_YEAR_INT",
     "INSPECTION_DATE",
-    "INSPECTION_DATE_AS_NUM",
     "UNIQUE_ADDRESS",
     "BUILDING_ID",
     "N_ENTRIES",
@@ -129,3 +133,77 @@ EPC_PREPROC_FEAT_SELECTION:
     "ENERGY_RATING_CAT",
     "DIFF_POT_ENERGY_RATING",
   ]
+
+dtypes:
+  {
+    "BUILDING_REFERENCE_NUMBER": int,
+    "ADDRESS1": str,
+    "ADDRESS2": str,
+    "POSTTOWN": str,
+    "POSTCODE": str,
+    "INSPECTION_DATE": "datetime64[ns]",
+    "LODGEMENT_DATE": "datetime64[ns]",
+    "ENERGY_CONSUMPTION_CURRENT": float,
+    "TOTAL_FLOOR_AREA": float,
+    "CURRENT_ENERGY_EFFICIENCY": int,
+    "CURRENT_ENERGY_RATING": str,
+    "POTENTIAL_ENERGY_RATING": str,
+    "CO2_EMISS_CURR_PER_FLOOR_AREA": float,
+    "WALLS_ENERGY_EFF": str,
+    "ROOF_ENERGY_EFF": str,
+    "FLOOR_ENERGY_EFF": str,
+    "WINDOWS_ENERGY_EFF": str,
+    "MAINHEAT_DESCRIPTION": str,
+    "MAINHEAT_ENERGY_EFF": str,
+    "MAINHEATC_ENERGY_EFF": str,
+    "SHEATING_ENERGY_EFF": str,
+    "HOT_WATER_ENERGY_EFF": str,
+    "LIGHTING_ENERGY_EFF": str,
+    "CO2_EMISSIONS_CURRENT": float,
+    "HEATING_COST_CURRENT": float,
+    "HEATING_COST_POTENTIAL": float,
+    "HOT_WATER_COST_CURRENT": float,
+    "HOT_WATER_COST_POTENTIAL": float,
+    "LIGHTING_COST_CURRENT": float,
+    "LIGHTING_COST_POTENTIAL": float,
+    "CONSTRUCTION_AGE_BAND": str,
+    "FLOOR_HEIGHT": float,
+    "EXTENSION_COUNT": float,
+    "FLOOR_LEVEL": float,
+    "GLAZED_AREA": float,
+    "NUMBER_HABITABLE_ROOMS": str,
+    "NUMBER_HEATED_ROOMS": str,
+    "LOCAL_AUTHORITY_LABEL": str,
+    "MAINS_GAS_FLAG": str,
+    "MAIN_FUEL": str,
+    "MAIN_HEATING_CONTROLS": float,
+    "MECHANICAL_VENTILATION": str,
+    "ENERGY_TARIFF": str,
+    "MULTI_GLAZE_PROPORTION": float,
+    "GLAZED_TYPE": str,
+    "PHOTO_SUPPLY": float,
+    "SOLAR_WATER_HEATING_FLAG": str,
+    "TENURE": str,
+    "TRANSACTION_TYPE": str,
+    "WIND_TURBINE_COUNT": float,
+    "BUILT_FORM": str,
+    "PROPERTY_TYPE": str,
+    "COUNTRY": str,
+    "CONSTRUCTION_AGE_BAND_ORIGINAL": str,
+    "ENTRY_YEAR": str,
+    "ENTRY_YEAR_INT": float,
+    "UNIQUE_ADDRESS": str,
+    "BUILDING_ID": str,
+    "N_ENTRIES": str,
+    "N_ENTRIES_BUILD_ID": str,
+    "HEATING_SYSTEM": str,
+    "HEATING_FUEL": str,
+    "HP_INSTALLED": bool,
+    "HP_TYPE": str,
+    "CURR_ENERGY_RATING_NUM": float,
+    "ENERGY_RATING_CAT": str,
+    "DIFF_POT_ENERGY_RATING": float,
+  }
+
+parse_dates:
+  ["INSPECTION_DATE", "LODGEMENT_DATE", "HP_INSTALL_DATE", "FIRST_HP_MENTION"]

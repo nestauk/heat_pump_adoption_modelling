@@ -9,6 +9,7 @@ import pandas as pd
 import numpy as np
 from zipfile import ZipFile
 
+
 from heat_pump_adoption_modelling import PROJECT_DIR, get_yaml_config, Path
 
 # ---------------------------------------------------------------------------------
@@ -297,6 +298,7 @@ def load_preprocessed_epc_data(
     usecols=None,
     nrows=None,
     snapshot_data=False,
+    dtype={},
     low_memory=False,
 ):
     """Load the EPC dataset including England, Wales and Scotland.
@@ -322,7 +324,6 @@ def load_preprocessed_epc_data(
 
     nrows : int, default=None
         Number of rows of file to read.
-
 
     snapshot_data : bool, default=False
         If True, load the snapshot version of the preprocessed EPC data saved in /inputs
@@ -355,7 +356,16 @@ def load_preprocessed_epc_data(
         extract_data(file_path + ".zip")
 
     # Load  data
-    epc_df = pd.read_csv(file_path, usecols=usecols, nrows=nrows, low_memory=low_memory)
+    epc_df = pd.read_csv(
+        file_path,
+        usecols=usecols,
+        nrows=nrows,
+        dtype=dtype,
+    )  # , low_memory=low_memory)
+
+    for col in config["parse_dates"]:
+        if col in epc_df.columns:
+            epc_df[col] = pd.to_datetime(epc_df[col])
 
     return epc_df
 
