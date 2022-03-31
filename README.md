@@ -30,6 +30,8 @@ This repository will not be maintained beyond March 2022 (other than occasional 
 
 ### Supervised model
 
+This approach uses supervised machine learning to predict heat pump adoption based on the characteristics of current heat pump adopters and their properties. One model learns what factors are most informative for predicting heat pump uptake from historical data about individual properties. An alternative model takes the slightly broader approach of predicting the growth in heat pump installations at a postcode level instead of individual households, indicating which areas are more likely to adopt heat pumps in the future.
+
 ### Geostatistical model
 
 This approach uses a geostatistical framework to model heat pump uptake on a postcode level. After processing the household-level EPC data and aggregating certain features by postcode, [INLA](https://www.r-inla.org/) is used to model the distribution of heat pump counts. The number of heat pumps in postcode i is modelled as a Binomial(n<sub>i</sub>, p<sub>i</sub>) random variable where n<sub>i</sub> is the number of properties in the postcode and p<sub>i</sub> is the fitted probability, determined by a combination of the EPC-derived features and a spatial process encoding the relationship between adjacent postcodes. Model diagnostic plots are then produced to investigate the relationship between the features and the fitted values, including choropleth maps to analyse spatial patterns.
@@ -52,9 +54,7 @@ This approach uses a geostatistical framework to model heat pump uptake on a pos
   - Configure pre-commit
   - Configure metaflow to use AWS
 
-Supervised - uses processed EPC data (from asf-core-data)
-
-Geostatistical - relies on EST (proprietary, download from S3)
+The input data can be downloaded from Nesta's S3 **asf-core-data** bucket.
 
 
 #### Contributor guidelines
