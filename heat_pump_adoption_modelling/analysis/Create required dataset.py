@@ -83,16 +83,42 @@ EPC_PREPROC_FEAT_SELECTION = [
     "CONSTRUCTION_AGE_BAND",
     "CONSTRUCTION_AGE_BAND_ORIGINAL",
     "SECONDHEAT_DESCRIPTION",
+    "UPRN",
 ]
 
 # %%
 epc_df = pd.read_csv(
     str(PROJECT_DIR)
-    + "/outputs/EPC_data/preprocessed_data/Q2_2021/EPC_GB_preprocessed.csv",
+    + "/outputs/EPC_data/preprocessed_data/Q4_2021/EPC_GB_preprocessed.csv",
     usecols=EPC_PREPROC_FEAT_SELECTION,
     parse_dates=["INSPECTION_DATE"],
 )
 epc_df["HP_INSTALLED"].value_counts(dropna=False)
+
+# %%
+epc_df.columns
+
+# %%
+imd_df = data_preprocessing.deprivation_data.get_gb_imd_data()
+epc_df = data_preprocessing.deprivation_data.merge_imd_with_other_set(
+    imd_df, epc_df, postcode_label="POSTCODE"
+)
+
+# Fix the HP install dates and add different postcode levels
+epc_df = data_preprocessing.manage_hp_install_dates(epc_df)
+
+# %%
+epc_df.columns
+
+# %%
+epc_df.to_csv(
+    data_preprocessing.SUPERVISED_MODEL_OUTPUT
+    + "epc_df_{}_preprocessed.csv".format("complete"),
+    index=False,
+)
+
+# %%
+epc_df.columns
 
 # %%
 prep_epc_df = data_preprocessing.preprocess_data(
@@ -116,7 +142,7 @@ dedupl_mcs.shape
 # %%
 epc_df = pd.read_csv(
     str(PROJECT_DIR)
-    + "/outputs/EPC_data/preprocessed_data/Q2_2021/EPC_GB_preprocessed.csv",
+    + "/outputs/EPC_data/preprocessed_data/Q4_2021/EPC_GB_preprocessed.csv",
     usecols=EPC_PREPROC_FEAT_SELECTION,
 )
 

@@ -23,6 +23,8 @@ from epc_data_analysis import PROJECT_DIR, get_yaml_config, Path
 from epc_data_analysis.pipeline.preprocessing import feature_engineering
 from epc_data_analysis.visualisation import easy_plotting, feature_settings
 
+from epc_data_analysis.pipeline import data_agglomeration
+
 from epc_data_analysis.config.kepler.kepler_config import (
     MAPS_CONFIG_PATH,
     MAPS_OUTPUT_PATH,
@@ -45,14 +47,23 @@ from ipywidgets import interact
 
 
 # %%
+populations = pd.read_csv(str(PROJECT_DIR) + "/inputs/population.csv")[
+    ["laname21", "population_2020"]
+]
+populations.columns = ["LOCAL_AUTHORITY_LABEL", "POPULATION"]
+
+# %%
 epc_df = pd.read_csv(
     str(PROJECT_DIR) + "/inputs/epc_df_complete_preprocessed.csv",
     parse_dates=["INSPECTION_DATE", "HP_INSTALL_DATE", "FIRST_HP_MENTION"],
 )
 
 # %%
+epc_df.columns
+
+# %%
 dedupl_epc_df = feature_engineering.filter_by_year(
-    epc_df, "BUILDING_ID", year=2021, up_to=True, selection="latest entry"
+    epc_df, "UPRN", year=2021, up_to=True, selection="latest entry"
 )
 print(dedupl_epc_df.shape)
 print(epc_df.shape)
@@ -60,13 +71,21 @@ print(dedupl_epc_df.columns)
 
 
 # %%
-# dedupl_epc_df.loc[~(dedupl_epc_df["FIRST_HP_MENTION"].isna())].shape
+dedupl_epc_df = feature_engineering.get_coordinates(dedupl_epc_df)
+dedupl_epc_df = data_agglomeration.add_hex_id(dedupl_epc_df, resolution=7.5)
+
+hex_to_LA = data_agglomeration.map_hex_to_feature(
+    dedupl_epc_df, "LOCAL_AUTHORITY_LABEL"
+)
 
 # %%
-~(dedupl_epc_df["FIRST_HP_MENTION"].isna())
-
-# %%
-dedupl_epc_df.columns
+dedupl_epc_df["HP_LOST_ALL"] = ~dedupl_epc_df["HP_AT_LAST"] & dedupl_epc_df["ANY_HP"]
+dedupl_epc_df["HP_ADDED_ALL"] = ~dedupl_epc_df["HP_AT_FIRST"] & dedupl_epc_df["ANY_HP"]
+dedupl_epc_df["HP_IN_MIDDLE"] = (
+    ~dedupl_epc_df["HP_AT_FIRST"]
+    & ~dedupl_epc_df["HP_AT_LAST"]
+    & dedupl_epc_df["ANY_HP"]
+)
 
 # %%
 mcs_available = dedupl_epc_df["MCS_AVAILABLE"] == True
@@ -90,10 +109,8 @@ print(
 print("Only MCS mention:", dedupl_epc_df.loc[~epc_hp_mention & mcs_available].shape[0])
 
 # %%
-dedupl_epc_df["EPC HP entry before MCS"].value_counts(dropna=False)
+print(dedupl_epc_df["EPC HP entry before MCS"].value_counts(dropna=False))
 
-
-# %%
 epc_entry_before_mcs = dedupl_epc_df.loc[dedupl_epc_df["EPC HP entry before MCS"]]
 
 epc_entry_before_mcs["> 1 YEAR DIFF"] = (
@@ -103,9 +120,8 @@ epc_entry_before_mcs["> 1 YEAR DIFF"] = (
 epc_entry_before_mcs["> 1 YEAR DIFF"].value_counts(normalize=True)
 
 # %%
-dedupl_epc_df["No EPC HP entry after MCS"].value_counts(dropna=False)
+print(dedupl_epc_df["No EPC HP entry after MCS"].value_counts(dropna=False))
 
-# %%
 no_epc_entry_after_mcs = dedupl_epc_df.loc[dedupl_epc_df["No EPC HP entry after MCS"]]
 
 no_epc_entry_after_mcs["> 1 YEAR DIFF"] = (
@@ -116,31 +132,25 @@ no_epc_entry_after_mcs["> 1 YEAR DIFF"] = (
 no_epc_entry_after_mcs["> 1 YEAR DIFF"].value_counts(normalize=True)
 
 # %%
-no_epc_entry_after_mcs["HP_LOST"].value_counts(normalize=True)
+print(no_epc_entry_after_mcs["HP_LOST_ALL"].value_counts(normalize=True))
 
-# %%
 no_epc_entry_after_mcs.loc[no_epc_entry_after_mcs["> 1 YEAR DIFF"]][
-    "HP_LOST"
+    "HP_LOST_ALL"
 ].value_counts(normalize=True)
 
 # %%
-epc_entry_before_mcs["HP_LOST"].value_counts(normalize=True)
+print(epc_entry_before_mcs["HP_LOST_ALL"].value_counts(normalize=True))
+
+epc_entry_before_mcs.loc[epc_entry_before_mcs["> 1 YEAR DIFF"]][
+    "HP_LOST_ALL"
+].value_counts(normalize=True)
 
 # %%
-epc_entry_before_mcs.loc[epc_entry_before_mcs["> 1 YEAR DIFF"]]["HP_LOST"].value_counts(
-    normalize=True
-)
+none = dedupl_epc_df.loc[~epc_hp_mention & ~mcs_available]
+none["HP set"] = "No HP"
 
-# %%
-dedupl_epc_df = feature_engineering.get_coordinates(dedupl_epc_df)
-dedupl_epc_df = data_agglomeration.add_hex_id(dedupl_epc_df, resolution=7.5)
-
-# %%
-# none = dedupl_epc_df.loc[~epc_hp_mention & ~mcs_available]
-# none['HP set'] = 'none'
-
-# either = dedupl_epc_df.loc[epc_hp_mention | mcs_available]
-# either['HP set'] = 'EPC | MCS'
+either = dedupl_epc_df.loc[epc_hp_mention | mcs_available]
+either["HP set"] = "EPC | MCS"
 
 # both = dedupl_epc_df.loc[epc_hp_mention & mcs_available]
 both = dedupl_epc_df.loc[epc_hp_mention & mcs_available]
@@ -174,6 +184,8 @@ conflict_b_short["HP set"] = "Conflict B > 1 year"
 
 any_hp = pd.concat(
     [
+        none,
+        either,
         both,
         epc_only,
         mcs_only,
@@ -181,23 +193,31 @@ any_hp = pd.concat(
         mcs_all,
         no_epc_after_mcs,
         epc_hp_before_mcs,
-        conflict_a_short,
-        conflict_b_short,
     ]
 )
 feature_1_order = [
+    "No HP",
+    "EPC | MCS",
     "EPC & MCS",
     "EPC all",
     "EPC only",
     "MCS all",
     "MCS only",
-    "Conflict A",
-    "Conflict B",
 ]
 
-# feature_1_order = ['EPC & MCS', 'EPC all', 'EPC only', 'MCS all', 'MCS only']
+# eature_1_order = ['EPC | MCS', 'EPC & MCS', 'EPC all', 'EPC only', 'MCS all', 'MCS only']
 # feature_1_order = [ 'Conflict A',  'Conflict A > 1 year',  'Conflict B',  'Conflict B > 1 year']
 any_hp["HP set"].value_counts(dropna=False)
+
+# %%
+# feature_1_order = [
+##    'EPC | MCS',
+#    "EPC & MCS",
+#    "EPC all",
+#    "EPC only",
+#    "MCS all",
+#    "MCS only",
+# ]
 
 # %%
 easy_plotting.plot_subcats_by_other_subcats(
@@ -213,6 +233,10 @@ easy_plotting.plot_subcats_by_other_subcats(
     ],
     plotting_colors="viridis",
     plot_title="HP Subsets split by Tenure",
+    figsize=(15, 5),
+    with_labels=True,
+    legend_loc="middle",
+    width=0.65,
 )
 
 # %%
@@ -224,13 +248,17 @@ easy_plotting.plot_subcats_by_other_subcats(
     feature_2_order=feature_settings.built_form_order,
     plotting_colors="viridis",
     plot_title="HP Subsets split by Built Form",
+    figsize=(15, 5),
+    width=0.7,
+    # legend_loc='outside',
+    with_labels=True,
 )
 
 # %%
 easy_plotting.plot_subcats_by_other_subcats(
     any_hp,
     "HP set",
-    "NOT_THEN_HP",
+    "HP_LOST_ALL",
     feature_1_order=feature_1_order,
     # feature_2_order=feature_settings.built_form_order,
     plotting_colors="viridis",
@@ -293,6 +321,10 @@ easy_plotting.plot_subcats_by_other_subcats(
     feature_2_order=feature_settings.prop_type_order,
     plotting_colors="viridis",
     plot_title="HP Subsets split by Property Type",
+    figsize=(15, 5),
+    width=0.8,
+    # legend_loc='outside',
+    with_labels=True,
 )
 
 # %%
@@ -301,13 +333,58 @@ easy_plotting.plot_subcats_by_other_subcats(
     "HP set",
     "CURRENT_ENERGY_RATING",
     feature_1_order=feature_1_order,
-    feature_2_order=feature_settings.rating_order,
+    feature_2_order=["A", "B", "C", "D", "E", "F", "G"],
     plotting_colors="RdYlGn_r",
     plot_title="HP Subsets split by EPC Rating",
+    figsize=(15, 5),
+    width=0.8,
+    # legend_loc='outside',
+    with_labels=True,
+)
+
+# %%
+any_hp["installation_type"] = any_hp["installation_type"].str.strip()
+any_hp["installation_type"].value_counts()
+
+# %%
+any_hp["installation_type"].fillna("unknown", inplace=True)
+easy_plotting.plot_subcats_by_other_subcats(
+    any_hp,
+    "HP set",
+    "installation_type",
+    feature_1_order=feature_1_order,
+    feature_2_order=[
+        "Domestic",
+        "Non-Domestic",
+        "Commercial",
+        "Unspecified",
+        "unknown",
+    ],
+    plotting_colors="viridis",
+    plot_title="HP Subsets split by Installation Type",
+    figsize=(15, 5),
+    width=0.8,
+    # legend_loc='outside',
+    with_labels=True,
+)
+
+# %%
+any_hp["# records"].fillna("unknown", inplace=True).astype("int")
+easy_plotting.plot_subcats_by_other_subcats(
+    any_hp,
+    "HP set",
+    "# records",
+    feature_1_order=feature_1_order,
+    # feature_2_order=["Domestic", "Non-Domestic", "Commercial", "Unspecified", "unknown"],
+    plotting_colors="RdYlGn_r",
+    plot_title="HP Subsets split by # Records",
 )
 
 # %%
 any_hp["ENTRY_YEAR"] = any_hp["INSPECTION_DATE"].dt.year
+any_hp["ENTRY_YEAR"].fillna(0, inplace=True)
+any_hp["ENTRY_YEAR"] = any_hp["ENTRY_YEAR"].astype("int")
+
 
 easy_plotting.plot_subcats_by_other_subcats(
     any_hp,
@@ -318,19 +395,27 @@ easy_plotting.plot_subcats_by_other_subcats(
     plotting_colors="viridis",
     legend_loc="outside",
     plot_title="HP Subsets split by Entry Year",
+    figsize=(15, 5),
+    width=0.8,
+    # legend_loc='outside',
+    with_labels=True,
 )
 
 # %%
 any_hp.loc[any_hp["HP set"] == "EPC & MCS"]["IMD Decile"].mean()
 
 # %%
-print(any_hp.loc[any_hp["HP set"] == "EPC all"]["IMD Decile"].mean())
-print(any_hp.loc[any_hp["HP set"] == "EPC only"]["IMD Decile"].mean())
-print(any_hp.loc[any_hp["HP set"] == "MCS all"]["IMD Decile"].mean())
-print(any_hp.loc[any_hp["HP set"] == "MCS only"]["IMD Decile"].mean())
-print(any_hp.loc[any_hp["HP set"] == "Conflict A"]["IMD Decile"].mean())
-print(any_hp.loc[any_hp["HP set"] == "Conflict B"]["IMD Decile"].mean())
+print(any_hp.loc[any_hp["HP set"] == "EPC all"]["IMD Decile"].median())
+print(any_hp.loc[any_hp["HP set"] == "EPC only"]["IMD Decile"].median())
+print(any_hp.loc[any_hp["HP set"] == "MCS all"]["IMD Decile"].median())
+print(any_hp.loc[any_hp["HP set"] == "MCS only"]["IMD Decile"].median())
+print(any_hp.loc[any_hp["HP set"] == "Conflict A"]["IMD Decile"].median())
+print(any_hp.loc[any_hp["HP set"] == "Conflict B"]["IMD Decile"].median())
 
+
+# %%
+print(any_hp.loc[any_hp["HP set"] == "EPC | MCS"]["IMD Decile"].median())
+print(any_hp.loc[any_hp["HP set"] == "No HP"]["IMD Decile"].median())
 
 # %%
 easy_plotting.plot_subcats_by_other_subcats(
@@ -340,19 +425,31 @@ easy_plotting.plot_subcats_by_other_subcats(
     feature_1_order=feature_1_order,
     # feature_2_order=feature_settings.year_order,
     plotting_colors="RdYlGn",
-    legend_loc="outside",
+    # legend_loc="outside",
     plot_title="HP Subsets split by IMD Decile",
+    figsize=(15, 5),
+    width=0.8,
+    # legend_loc='outside',
+    with_labels=True,
 )
+
+# %%
+any_hp["Country"].value_counts()
 
 # %%
 easy_plotting.plot_subcats_by_other_subcats(
     any_hp,
     "Country",
     "HP set",
+    feature_1_order=["England", "Wales", "Scotland"],
     feature_2_order=feature_1_order,
-    # feature_2_order=feature_settings.year_order,
+    # feature_2_order=["England", "Wales", 'Scotland'],
     plotting_colors="viridis",
-    plot_title="HP Subsets split by Country",
+    plot_title="HP Subsets split by Country (split)",
+    figsize=(15, 5),
+    width=0.8,
+    # legend_loc='outside',
+    with_labels=True,
 )
 
 # %%
@@ -368,6 +465,10 @@ easy_plotting.plot_subcats_by_other_subcats(
     plotting_colors="viridis",
     legend_loc="outside",
     plot_title="HP Subsets split by alt_type",
+    figsize=(15, 5),
+    width=0.8,
+    # legend_loc='outside',
+    # with_labels=True
 )
 
 # %%
@@ -399,6 +500,10 @@ easy_plotting.plot_subcats_by_other_subcats(
     # feature_2_order=feature_settings.year_order,
     plotting_colors="viridis",
     plot_title="HP Subsets split by # Associated Certificates",
+    figsize=(15, 5),
+    width=0.8,
+    # legend_loc='outside',
+    # with_labels=True
 )
 
 # %%
@@ -412,6 +517,10 @@ easy_plotting.plot_subcats_by_other_subcats(
     # feature_2_order=feature_settings.year_order,
     plotting_colors="viridis",
     plot_title="HP Subsets split by New Installation",
+    figsize=(15, 5),
+    width=0.8,
+    # legend_loc='outside',
+    # with_labels=True
 )
 
 # %%
@@ -423,13 +532,19 @@ easy_plotting.plot_subcats_by_other_subcats(
     feature_2_order=feature_settings.const_year_order_merged,
     plotting_colors="viridis",
     plot_title="HP Subsets split by Construction Age Band",
-    legend_loc="outside",
+    # legend_loc="outside",
+    figsize=(15, 5),
+    width=0.9,
+    # legend_loc='outside',
+    with_labels=True,
 )
 
 # %%
 # any_hp['FIRST_HP_MENTION'] = pd.to_datetime(any_hp['FIRST_HP_MENTION'])
 any_hp["FIRST_HP_MENTION_YEAR"] = any_hp["FIRST_HP_MENTION"].dt.year
-any_hp["FIRST_HP_MENTION_YEAR"].fillna(any_hp["HP_INSTALL_DATE"].dt.year)
+any_hp["FIRST_HP_MENTION_YEAR"].fillna(any_hp["HP_INSTALL_DATE"].dt.year, inplace=True)
+# any_hp["FIRST_HP_MENTION_YEAR"] = any_hp["FIRST_HP_MENTION_YEAR"].astype('int')
+
 
 easy_plotting.plot_subcats_by_other_subcats(
     any_hp,
@@ -476,7 +591,7 @@ easy_plotting.plot_subcats_by_other_subcats(
 easy_plotting.plot_subcats_by_other_subcats(
     any_hp,
     "HP set",
-    "POSTTOWN",
+    "X",
     feature_1_order=feature_1_order,
     # feature_2_order=["1", "2", "3", "4"],
     plotting_colors="viridis",
@@ -485,6 +600,8 @@ easy_plotting.plot_subcats_by_other_subcats(
 
 # %%
 any_hp["HP_INSTALL_YEAR"] = any_hp["HP_INSTALL_DATE"].dt.year
+any_hp["HP_INSTALL_YEAR"].fillna(0, inplace=True)
+any_hp["HP_INSTALL_YEAR"] = any_hp["HP_INSTALL_YEAR"].astype("int")
 
 
 easy_plotting.plot_subcats_by_other_subcats(
@@ -505,9 +622,13 @@ easy_plotting.plot_subcats_by_other_subcats(
         2020,
         2021,
     ],
-    feature_1_order=feature_1_order,
+    feature_1_order=feature_1_order[1:],
     plotting_colors="viridis",
     plot_title="HP Subsetse split by HP Install Year",
+    figsize=(15, 5),
+    width=0.8,
+    # legend_loc='outside',
+    with_labels=True,
 )
 
 # %%
@@ -531,7 +652,11 @@ easy_plotting.plot_subcats_by_other_subcats(
     plotting_colors="viridis",
     feature_1_order=feature_1_order,
     plot_title="HP Subsets split by Transaction Type",
-    legend_loc="outside",
+    # legend_loc="outside",
+    figsize=(15, 5),
+    width=0.9,
+    # legend_loc='outside',
+    with_labels=True,
 )
 
 # %%
@@ -590,6 +715,11 @@ any_hp.loc[any_hp["HP set"] == "MCS all"]["DIFF BIGGER"].value_counts() / any_hp
 ].shape[0]
 
 # %%
+any_hp.loc[any_hp["HP set"] == "EPC | MCS"]["DIFF BIGGER"].value_counts() / any_hp.loc[
+    any_hp["HP set"] == "EPC | MCS"
+].shape[0]
+
+# %%
 any_hp.loc[any_hp["HP set"] == "EPC & MCS"]["DIFF BIGGER"].value_counts() / any_hp.loc[
     any_hp["HP set"] == "EPC & MCS"
 ].shape[0]
@@ -639,8 +769,7 @@ any_hp.loc[any_hp["HP set"] == "MCS only"]["YEAR_DIFF_INSTALL"].value_counts(
 )
 
 # %%
-
-# any_hp['HP_INSTALL_YEAR'] = any_hp['HP_INSTALL_YEAR'].astype('int')
+any_hp["YEAR_DIFF_INSTALL"] = any_hp["YEAR_DIFF_INSTALL"].astype("int")
 
 easy_plotting.plot_subcats_by_other_subcats(
     any_hp,
@@ -653,21 +782,89 @@ easy_plotting.plot_subcats_by_other_subcats(
 )
 
 # %%
-epc_mcs_df.loc[~epc_mcs_df["epc_address"].isna()][
-    "BUILDING_REFERENCE_NUMBER"
-].unique().shape
+# Get HEX ID to Local Authority Mapping
+# hex_to_LA = data_agglomeration.map_hex_to_feature(epc_df, "LOCAL_AUTHORITY_LABEL")
+
+la_df = pd.DataFrame(dedupl_epc_df.LOCAL_AUTHORITY_LABEL.unique())
+la_df.columns = ["LOCAL_AUTHORITY_LABEL"]
+data_by_year = []
+
+for year in [2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021]:
+
+    year_df = feature_engineering.filter_by_year(
+        dedupl_epc_df, "BUILDING_ID", year, up_to=True
+    ).copy()
+    print(year_df.shape)
+    year_df["HP_INSTALLED"] = year_df["HP_INSTALL_DATE"].dt.year <= year
+
+    year_stamp = str(year) + "/01/01 00:00"
+    year_agglo_df = data_agglomeration.get_agglomerated_features(
+        year_df,
+        feature=None,
+        agglo_feature="LOCAL_AUTHORITY_LABEL",
+        year_stamp=year_stamp,
+    )
+    # year_agglo_df = pd.merge(year_agglo_df,hex_df, on='hex_id', how='right')
+    year_agglo_df = pd.merge(
+        year_agglo_df, la_df, on="LOCAL_AUTHORITY_LABEL", how="right"
+    )
+    year_agglo_df["YEAR_STAMP"] = str(year) + "/01/01 00:00"
+
+    year_agglo_df = pd.merge(hex_to_LA, year_agglo_df, on=["LOCAL_AUTHORITY_LABEL"])
+    data_by_year.append(year_agglo_df)
+
+time_data = pd.concat(data_by_year)
+
+time_data["HP_PERC"] = time_data["HP_PERC"].fillna(0.0)
+time_data["HP_CAT"] = time_data["HP_CAT"].fillna("0.0 %")
+
 
 # %%
+from keplergl import KeplerGl
+from epc_data_analysis.config.kepler import kepler_config
+from epc_data_analysis.config.kepler.kepler_config import (
+    MAPS_CONFIG_PATH,
+    MAPS_OUTPUT_PATH,
+)
+
+
+time_data["EPC_CAT"] = time_data["EPC_CAT"].fillna("C-D")
+time_data["HP_PERCENTAGE"] = time_data["HP_CAT"]
+
+version_tag = "HP_time_course"
+
+config_file = MAPS_CONFIG_PATH + "{}_config.txt".format(version_tag)
+config = kepler_config.get_config(config_file)
+
+time_map = KeplerGl(height=500)  # , config=config)
+
+time_map.add_data(
+    data=time_data[
+        [
+            "HP_PERC",
+            "HP_PERCENTAGE",
+            "EPC_CAT",
+            "hex_id",
+            "LOCAL_AUTHORITY_LABEL",  # "CO2_EMISSIONS_CURRENT",
+            "YEAR_STAMP",
+        ]
+    ],
+    name="Year Data",
+)
+
+time_map
 
 # %%
+kepler_config.save_config(time_map, config_file)
 
-# any_hp = feature_engineering.get_coordinates(any_hp)
+time_map.save_to_html(file_name=MAPS_OUTPUT_PATH + "Time_Course_Heat_Pumps_final.html")
 
+# %%
 from epc_data_analysis.config.kepler import kepler_config as kepler
 
 config = kepler.get_config(kepler.MAPS_CONFIG_PATH + "epc_mcs_comparison_short.txt")
 
-epc_mcs_comp = KeplerGl(height=500)  # , config=config)
+epc_mcs_comp = KeplerGl(height=500, config=config)
 
 epc_mcs_comp.add_data(
     data=any_hp.loc[any_hp["HP set"] == "EPC & MCS"][["LONGITUDE", "LATITUDE"]],
@@ -712,24 +909,49 @@ kepler.save_config(epc_mcs_comp, MAPS_CONFIG_PATH + "epc_mcs_comparison_dots.txt
 epc_mcs_comp.save_to_html(file_name=MAPS_OUTPUT_PATH + "EPC_vs_MCS_dots.html")
 
 # %%
+agglo_feature = ["LOCAL_AUTHORITY_LABEL", "hex_id"][0]
+
+# %%
+interval = 10
+values = [
+    [str(i) + "-" + str(i + interval) + "%"] * interval for i in range(0, 100, interval)
+]
+
+values = [item for sublist in values for item in sublist]
+keys = [i / 100 for i in range(0, 100)]
+
+cat_dict_10 = dict(zip(keys, values))
+
+interval = 2
+values = [
+    [str(i) + "-" + str(i + interval) + "%"] * interval for i in range(0, 100, interval)
+]
+
+values = [item for sublist in values for item in sublist]
+keys = [i / 100 for i in range(0, 100)]
+
+cat_dict_1 = dict(zip(keys, values))
+
+
 all_props = dedupl_epc_df.copy()
 all_hps = dedupl_epc_df[~((~epc_hp_mention) & (~mcs_available))]
 
 all_props_total = data_agglomeration.get_cat_distr_grouped_by_agglo_f(
-    all_props, "TENURE", agglo_feature="hex_id"
+    all_props, "TENURE", agglo_feature=agglo_feature
 )
-all_props_total.rename(columns={"hex_id_TOTAL": "TOTAL"}, inplace=True)
+all_props_total.rename(columns={agglo_feature + "_TOTAL": "TOTAL"}, inplace=True)
 
 
 all_hps_total = data_agglomeration.get_cat_distr_grouped_by_agglo_f(
-    all_hps, "TENURE", agglo_feature="hex_id"
+    all_hps, "TENURE", agglo_feature=agglo_feature
 )
-all_hps_total.rename(columns={"hex_id_TOTAL": "TOTAL"}, inplace=True)
+all_hps_total.rename(columns={agglo_feature + "_TOTAL": "TOTAL"}, inplace=True)
 
 
 all_datasets = collections.defaultdict(dict)
 
 norm_dict = {"all properties": all_props_total, "all HP properties": all_hps_total}
+
 
 for dataset_name in [
     "EPC & MCS",
@@ -744,22 +966,49 @@ for dataset_name in [
     for normset_name in ["all properties", "all HP properties"]:
 
         dataset = any_hp.loc[any_hp["HP set"] == dataset_name][
-            ["LONGITUDE", "LATITUDE", "hex_id", "TENURE"]
+            ["LONGITUDE", "LATITUDE", "hex_id", "TENURE", "LOCAL_AUTHORITY_LABEL"]
         ]
 
-        norm_set = norm_dict[normset_name]
-
         aggl_dataset = data_agglomeration.get_cat_distr_grouped_by_agglo_f(
-            dataset, "TENURE", agglo_feature="hex_id"
+            dataset, "TENURE", agglo_feature=agglo_feature
         )
 
-        aggl_dataset = pd.merge(aggl_dataset, norm_set, on="hex_id", how="right")
+        if agglo_feature == "LOCAL_AUTHORITY_LABEL":
 
-        aggl_dataset["perc"] = round(
-            (aggl_dataset["hex_id_TOTAL"] / aggl_dataset["TOTAL"]).astype(float), 2
-        )
+            aggl_dataset = pd.merge(
+                aggl_dataset, populations, on=agglo_feature, how="right"
+            )
+
+            aggl_dataset["perc"] = round(
+                (
+                    aggl_dataset[agglo_feature + "_TOTAL"] / aggl_dataset["POPULATION"]
+                ).astype(float),
+                2,
+            )
+
+        else:
+
+            norm_set = norm_dict[normset_name]
+            aggl_dataset = pd.merge(
+                aggl_dataset, norm_set, on=agglo_feature, how="right"
+            )
+
+            aggl_dataset["perc"] = round(
+                (aggl_dataset[agglo_feature + "_TOTAL"] / aggl_dataset["TOTAL"]).astype(
+                    float
+                ),
+                2,
+            )
 
         aggl_dataset["perc"].fillna(0.0, inplace=True)
+
+        # aggl_dataset["perc"] = aggl_dataset["perc"].map(cat_dict_1)
+
+        if agglo_feature == "LOCAL_AUTHORITY_LABEL":
+            aggl_dataset = pd.merge(
+                aggl_dataset, hex_to_LA, on=agglo_feature, how="right"
+            )
+
         all_datasets[dataset_name][normset_name] = aggl_dataset
 
 
@@ -769,47 +1018,65 @@ norm_set = "all properties"
 # %%
 from epc_data_analysis.config.kepler import kepler_config as kepler
 
-config_file_tag = "" if norm_set == "all HP properties" else "_norm_by_pop"
+config_file_tag = (
+    "norm_by_HP_prop" if norm_set == "all HP properties" else "norm_by_population"
+)
+
+# config_file_tag = "norm_by_HP_prop"
+
+if agglo_feature == "LOCAL_AUTHORITY_LABEL":
+    config_file_tag += "_LA"
 
 config = kepler.get_config(
-    kepler.MAPS_CONFIG_PATH + "epc_mcs_comparison{}.txt".format(config_file_tag)
+    kepler.MAPS_CONFIG_PATH + "epc_mcs_comparison_{}.txt".format(config_file_tag)
 )
+
 
 epc_mcs_comp = KeplerGl(height=500, config=config)
 
 epc_mcs_comp.add_data(
-    data=all_datasets["EPC & MCS"][norm_set][["hex_id", "perc"]],
+    data=all_datasets["EPC & MCS"][norm_set][
+        ["hex_id", "perc", "LOCAL_AUTHORITY_LABEL"]
+    ],
     name="EPC & MCS",
 )
 
 epc_mcs_comp.add_data(
-    data=all_datasets["MCS only"][norm_set][["hex_id", "perc"]],
+    data=all_datasets["MCS only"][norm_set][
+        ["hex_id", "perc", "LOCAL_AUTHORITY_LABEL"]
+    ],
     name="MCS only",
 )
 
 epc_mcs_comp.add_data(
-    data=all_datasets["EPC only"][norm_set][["hex_id", "perc"]],
+    data=all_datasets["EPC only"][norm_set][
+        ["hex_id", "perc", "LOCAL_AUTHORITY_LABEL"]
+    ],
     name="EPC only",
 )
 
 epc_mcs_comp.add_data(
-    data=all_datasets["EPC all"][norm_set][["hex_id", "perc"]],
+    data=all_datasets["EPC all"][norm_set][["hex_id", "perc", "LOCAL_AUTHORITY_LABEL"]],
     name="EPC (all)",
 )
 
 
 epc_mcs_comp.add_data(
-    data=all_datasets["MCS all"][norm_set][["hex_id", "perc"]],
+    data=all_datasets["MCS all"][norm_set][["hex_id", "perc", "LOCAL_AUTHORITY_LABEL"]],
     name="MCS (all)",
 )
 
 epc_mcs_comp.add_data(
-    data=all_datasets["Conflict A"][norm_set][["hex_id", "perc"]],
+    data=all_datasets["Conflict A"][norm_set][
+        ["hex_id", "perc", "LOCAL_AUTHORITY_LABEL"]
+    ],
     name="Conflict A",
 )
 
 epc_mcs_comp.add_data(
-    data=all_datasets["Conflict B"][norm_set][["hex_id", "perc"]],
+    data=all_datasets["Conflict B"][norm_set][
+        ["hex_id", "perc", "LOCAL_AUTHORITY_LABEL"]
+    ],
     name="Conflict B",
 )
 
@@ -817,10 +1084,17 @@ epc_mcs_comp.add_data(
 display(epc_mcs_comp)
 
 # %%
+"epc_mcs_comparison{}.txt".format(config_file_tag)
+
+config_file_tag = "norm_by_population_LA"
+
+# %%
 kepler.save_config(
-    epc_mcs_comp, MAPS_CONFIG_PATH + "epc_mcs_comparison_norm_by_pop.txt"
+    epc_mcs_comp, MAPS_CONFIG_PATH + "epc_mcs_comparison_{}.txt".format(config_file_tag)
 )
 
-epc_mcs_comp.save_to_html(file_name=MAPS_OUTPUT_PATH + "EPC_vs_MCS_norm_by_pop.html")
+epc_mcs_comp.save_to_html(
+    file_name=MAPS_OUTPUT_PATH + "EPC_vs_MCS_{}.html".format(config_file_tag)
+)
 
 # %%

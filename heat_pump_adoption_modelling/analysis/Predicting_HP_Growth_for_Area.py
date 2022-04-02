@@ -48,6 +48,7 @@ from heat_pump_adoption_modelling.pipeline.preprocessing import (
 from heat_pump_adoption_modelling.pipeline.supervised_model.utils import (
     error_analysis,
     plotting_utils,
+    hyperparameter_screening,
 )
 from heat_pump_adoption_modelling.pipeline.supervised_model.utils import kepler
 
@@ -71,8 +72,12 @@ epc_df = data_preprocessing.preprocess_data(epc_df, encode_features=False)
 
 # %%
 epc_df = pd.read_csv(
-    data_preprocessing.SUPERVISED_MODEL_OUTPUT + "epc_df_5m_preprocessed.csv"
+    data_preprocessing.SUPERVISED_MODEL_OUTPUT + "epc_df_5m_preprocessed.csv",
+    parse_dates=["INSPECTION_DATE", "HP_INSTALL_DATE"],
 )
+
+# %%
+epc_df.columns
 
 # %%
 epc_df = epc_df.drop(columns=data_preprocessing.drop_features)
@@ -84,10 +89,26 @@ epc_df.columns
 # %%
 drop_features = [
     "HP_INSTALL_DATE",
+    "INSPECTION_DATE",
     "MCS address",
     "version",
     "EPC HP entry before MCS",
-    "No EPC HP etnry after MCS",
+    "No EPC HP entry after MCS",
+    "MCS address",
+    "version",
+    "new",
+    "n_certificates",
+    "alt_type",
+    "installation_type",
+    "# records",
+    "ANY_HP",
+    "HP_AT_FIRST",
+    "HP_AT_LAST",
+    "HP_LOST",
+    "HP_ADDED",
+    "HP_IN_THE_MIDDLE",
+    "ARTIFICIALLY_DUPL",
+    "SECONDHEAT_DESCRIPTION",
 ]
 
 postcode_level = "POSTCODE_UNIT"
@@ -106,10 +127,23 @@ X, y = prediction_pipeline.get_data_with_labels(
     aggr_temp, version="HP Growth by Area", drop_features=[]
 )
 
+print(X.shape)
 X.head()
 
 # %% [markdown]
-# ### Train the Predictive Model
+# #### Train the Predictive Model
+
+# %%
+X.shape
+
+# %%
+hyperparameter_screening.grid_screening(
+    "Random Forest Regressor",
+    X[:5000],
+    y[:5000],
+    "neg_mean_squared_error",
+    drop_features,
+)
 
 # %%
 prediction_pipeline.predict_heat_pump_adoption(
