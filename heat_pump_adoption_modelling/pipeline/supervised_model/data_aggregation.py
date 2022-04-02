@@ -13,8 +13,17 @@ import numpy as np
 
 from heat_pump_adoption_modelling.pipeline.encoding import feature_encoding
 from heat_pump_adoption_modelling.pipeline.preprocessing import feature_engineering
+from heat_pump_adoption_modelling import PROJECT_DIR, get_yaml_config, Path
 
 # ----------------------------------------------------------------------------------
+
+# Load config file
+config = get_yaml_config(
+    Path(str(PROJECT_DIR) + "/heat_pump_adoption_modelling/config/base.yaml")
+)
+
+
+IDENTIFIER = config["IDENTIFIER"]
 
 
 def split_postcode_by_level(postcode, level, with_space=True):
@@ -319,7 +328,7 @@ def get_target_variables(
     )
 
     dedupl_df = feature_engineering.filter_by_year(
-        df, "BUILDING_ID", None, selection="latest entry"
+        df, IDENTIFIER, None, selection="latest entry"
     )
 
     n_hp_installed_total = get_feature_count_grouped(

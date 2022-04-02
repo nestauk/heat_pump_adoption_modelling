@@ -49,10 +49,12 @@ param_grid_dict = {
         "tol": [0.00001, 0.00005, 0.0001, 0.0005, 0.001, 0.01, 0.1],
     },
     "Random Forest Regressor": {
-        "n_estimators": [10, 15, 18, 20, 23],
+        "n_estimators": [5, 10, 15, 18, 20, 25, 30, 40, 50, 60, 70, 80, 100, 500, None],
+        "max_depth": [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, None],
         "max_features": [5, 10, 15, 20, 25, "auto", "sqrt"],
-        "min_samples_leaf": [0.05],
-        "bootstrap": [False],
+        "min_samples_leaf": [0.05, 0.1, 1, 3, 5],
+        "min_samples_split": [2, 5, 10],
+        "bootstrap": [False, True],
     },  # {'bootstrap': False, 'max_features': 10, 'min_samples_leaf': 0.05, 'n_estimators': 20}
     # {'bootstrap': False, 'max_features': 15, 'min_samples_leaf': 0.05, 'n_estimators': 15}
     "SVM Regressor": {

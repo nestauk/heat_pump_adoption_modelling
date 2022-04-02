@@ -56,12 +56,12 @@ drop_features = [
     "CONSTRUCTION_AGE_BAND",
     "NUMBER_HEATED_ROOMS",
     "LOCAL_AUTHORITY_LABEL",
-    "ENTRY_YEAR",
+    # "ENTRY_YEAR",
     "N_ENTRIES",
     "CURR_ENERGY_RATING_NUM",
     "ENERGY_RATING_CAT",
     "UNIQUE_ADDRESS",
-    "INSPECTION_DATE",
+    # "INSPECTION_DATE",
     "MAIN_FUEL",
     "Country",
     "original_address",
@@ -81,6 +81,8 @@ MERGED_MCS_EPC = str(PROJECT_DIR) + config["MERGED_MCS_EPC"]
 SUPERVISED_MODEL_OUTPUT = str(PROJECT_DIR) + config["SUPERVISED_MODEL_OUTPUT"]
 SUPERVISED_MODEL_FIG_PATH = str(PROJECT_DIR) + config["SUPERVISED_MODEL_FIG_PATH"]
 dtypes = config["dtypes"]
+
+IDENTIFIER = config["IDENTIFIER"]
 
 
 def select_samples_by_postcode_completeness(df, min_samples=5000000):
@@ -170,6 +172,8 @@ def get_mcs_install_dates(epc_df):
             "new",
             "n_certificates",
             "alt_type",
+            "installation_type",
+            "# records",
         ],
     )
 
@@ -191,7 +195,6 @@ def get_mcs_install_dates(epc_df):
 
     # Get original EPC address from MCS/EPC match
     mcs_data = mcs_data.loc[~mcs_data["compressed_epc_address"].isna()]
-
     mcs_data["MCS_ADDRESS"] = (
         mcs_data["MCS address 1"]
         + " "
@@ -253,6 +256,14 @@ def get_mcs_install_dates(epc_df):
         mcs_data.set_index("compressed_epc_address").to_dict()["alt_type"]
     )
 
+    epc_df["installation_type"] = epc_df["original_address"].map(
+        mcs_data.set_index("compressed_epc_address").to_dict()["installation_type"]
+    )
+
+    epc_df["# records"] = epc_df["original_address"].map(
+        mcs_data.set_index("compressed_epc_address").to_dict()["# records"]
+    )
+
     return epc_df
 
 
@@ -276,20 +287,24 @@ def manage_hp_install_dates(df, verbose=True):
 
     # Get the first heat pump mention for each property
     first_hp_mention = (
-        df.loc[df["HP_INSTALLED"]].groupby("BUILDING_ID")["INSPECTION_DATE"].min()
+        df.loc[df["HP_INSTALLED"]].groupby(IDENTIFIER)["INSPECTION_DATE"].min()
     )
 
-    df["FIRST_HP_MENTION"] = df["BUILDING_ID"].map(dict(first_hp_mention))
+    df["FIRST_HP_MENTION"] = df[IDENTIFIER].map(dict(first_hp_mention))
 
-    df["HP_AT_FIRST"] = df["BUILDING_ID"].map(
-        df.loc[df.groupby("BUILDING_ID")["INSPECTION_DATE"].idxmin()]
-        .set_index("BUILDING_ID")
+    df["ANY_HP"] = df[IDENTIFIER].map(
+        dict(df.groupby(IDENTIFIER)["HP_INSTALLED"].max())
+    )
+
+    df["HP_AT_FIRST"] = df[IDENTIFIER].map(
+        df.loc[df.groupby(IDENTIFIER)["INSPECTION_DATE"].idxmin()]
+        .set_index(IDENTIFIER)
         .to_dict()["HP_INSTALLED"]
     )
 
-    df["HP_AT_LAST"] = df["BUILDING_ID"].map(
-        df.loc[df.groupby("BUILDING_ID")["INSPECTION_DATE"].idxmax()]
-        .set_index("BUILDING_ID")
+    df["HP_AT_LAST"] = df[IDENTIFIER].map(
+        df.loc[df.groupby(IDENTIFIER)["INSPECTION_DATE"].idxmax()]
+        .set_index(IDENTIFIER)
         .to_dict()["HP_INSTALLED"]
     )
 
@@ -320,6 +335,7 @@ def manage_hp_install_dates(df, verbose=True):
 
     # If no first mention of HP, then set has
     df["HAS_HP_AT_SOME_POINT"] = ~df["FIRST_HP_MENTION"].isna()
+    df["ARTIFICIALLY_DUPL"] = False
 
     # HP entry conditions
     no_mcs_or_epc = (~df["MCS_AVAILABLE"]) & (~df["HP_INSTALLED"])
@@ -442,6 +458,7 @@ def manage_hp_install_dates(df, verbose=True):
     no_future_hp_entry["HP_INSTALLED"] = True
     no_future_hp_entry["HAS_HP_AT_SOME_POINT"] = True
     no_future_hp_entry["INSPECTION_DATE"] = no_future_hp_entry["HP_INSTALL_DATE"]
+    no_future_hp_entry["ARTIFICIALLY_DUPL"] = True
 
     # df["HP_INSTALLED"] = np.where(
     #     (no_epc_but_mcs_hp & epc_entry_before_mcs), False, df["HP_INSTALLED"]
@@ -452,7 +469,7 @@ def manage_hp_install_dates(df, verbose=True):
         df["HP_INSTALL_DATE"],
     )
 
-    # df = pd.concat([df, no_future_hp_entry])
+    df = pd.concat([df, no_future_hp_entry])
 
     return df
 
@@ -511,10 +528,10 @@ def get_aggregated_temp_data(
 
     # Get data for data up to t (source year) and t+n (target year)
     source_year = feature_engineering.filter_by_year(
-        df, "BUILDING_ID", source_year, selection="latest entry", up_to=True
+        df, IDENTIFIER, source_year, selection="latest entry", up_to=True
     )
     target_year = feature_engineering.filter_by_year(
-        df, "BUILDING_ID", target_year, selection="latest entry", up_to=True
+        df, IDENTIFIER, target_year, selection="latest entry", up_to=True
     )
 
     # Get target variables (growth and coverage)
@@ -522,10 +539,10 @@ def get_aggregated_temp_data(
         df, source_year, target_year, postcode_level, normalize_by="total"
     )
 
+    print(drop_features + [IDENTIFIER, "HP_INSTALLED"])
+
     # Drop unnecessary features
-    source_year = source_year.drop(
-        columns=drop_features + ["BUILDING_ID", "HP_INSTALLED"]
-    )
+    source_year = source_year.drop(columns=drop_features + [IDENTIFIER, "HP_INSTALLED"])
 
     # Aggregate and encode features
     source_year = data_aggregation.aggregate_and_encode_features(

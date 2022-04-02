@@ -28,6 +28,7 @@ config = get_yaml_config(
 
 FIG_PATH = PROJECT_DIR / config["SUPERVISED_MODEL_FIG_PATH"]
 SUPERVISED_MODEL_OUTPUT = str(PROJECT_DIR) + config["SUPERVISED_MODEL_OUTPUT"]
+IDENTIFIER = config["IDENTIFIER"]
 
 
 def balance_set(X, target_variable, false_ratio=0.9):
@@ -92,10 +93,10 @@ def get_HP_status_changes(df):
 
     # Get latest and first EPC entry
     latest_epc = feature_engineering.filter_by_year(
-        multiple_entry_epcs, "BUILDING_ID", None, selection="latest entry"
+        multiple_entry_epcs, IDENTIFIER, None, selection="latest entry"
     )
     first_epc = feature_engineering.filter_by_year(
-        multiple_entry_epcs, "BUILDING_ID", None, selection="first entry"
+        multiple_entry_epcs, IDENTIFIER, None, selection="first entry"
     )
 
     # Heat pump status now / in the past
@@ -104,9 +105,9 @@ def get_HP_status_changes(df):
 
     # Merging before/after
     before_after_status = pd.merge(
-        latest_epc[["NOW_HP", "BUILDING_ID"]],
-        first_epc[["PAST_HP", "BUILDING_ID"]],
-        on=["BUILDING_ID"],
+        latest_epc[["NOW_HP", IDENTIFIER]],
+        first_epc[["PAST_HP", IDENTIFIER]],
+        on=[IDENTIFIER],
     )
 
     # Whether heat pump was added in the meantime
@@ -117,8 +118,8 @@ def get_HP_status_changes(df):
     # Get future heat pump status
     df_with_hp_status = pd.merge(
         first_epc,
-        before_after_status[["BUILDING_ID", "HP_ADDED"]],
-        on=["BUILDING_ID"],
+        before_after_status[[IDENTIFIER, "HP_ADDED"]],
+        on=[IDENTIFIER],
     )
 
     # Exclude samples that had a HP from the very start
@@ -175,7 +176,7 @@ def get_data_with_labels(
     if version == "Current HP Status":
 
         X = feature_engineering.filter_by_year(
-            df, "BUILDING_ID", None, selection="latest entry"
+            df, IDENTIFIER, None, selection="latest entry"
         )
         drop_features += [
             "HEATING_SYSTEM",
