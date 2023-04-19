@@ -25,6 +25,12 @@
 
 ### Supervised Model
 
+Find more details in this [report](https://github.com/nestauk/heat_pump_adoption_modelling/tree/dev/outputs/reports/EST_Supervised_Model.md).
+
+![household_level](https://user-images.githubusercontent.com/42718928/233107024-2ea3f047-e4b5-488d-8f99-13fe0ac6ebef.png)
+
+![postcode_level](https://user-images.githubusercontent.com/42718928/233106663-7b0d3c0e-dc93-42c3-8e0e-a561b92836ce.png)
+
 ##### Premises
 
 - Target: expected % increase in heat pump adoptions in a prescribed area at time (year) t

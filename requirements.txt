@@ -9,3 +9,5 @@ tqdm
 filelock
 typer
 sh
+keplergl
+asf_core_data@ git+ssh://git@github.com/nestauk/asf_core_data.git@2_epc_processing

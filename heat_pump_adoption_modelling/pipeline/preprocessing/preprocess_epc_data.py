@@ -26,6 +26,7 @@ PREPROC_EPC_DATA_PATH = str(PROJECT_DIR) + config["PREPROC_EPC_DATA_PATH"]
 PREPROC_EPC_DATA_DEDUPL_PATH = str(PROJECT_DIR) + config["PREPROC_EPC_DATA_DEDUPL_PATH"]
 
 EPC_FEAT_SELECTION = config["EPC_FEAT_SELECTION"]
+IDENTIFIER = config["IDENTIFIER"]
 
 
 def preprocess_data(df, remove_duplicates=True, save_data=True, verbose=True):
@@ -94,7 +95,7 @@ def preprocess_data(df, remove_duplicates=True, save_data=True, verbose=True):
     if remove_duplicates:
 
         df = feature_engineering.filter_by_year(
-            df, "BUILDING_ID", None, selection="latest entry"
+            df, IDENTIFIER, None, selection="latest entry"
         )
 
         processing_steps.append(("After removing duplicates", df.shape[0], df.shape[1]))
@@ -188,6 +189,8 @@ def main():
             "GLAZED_TYPE",
             "GLAZED_AREA",
             "EXTENSION_COUNT",
+            "SECONDHEAT_DESCRIPTION",
+            "ADDRESS2",
         ],
         nrows=None,
     )

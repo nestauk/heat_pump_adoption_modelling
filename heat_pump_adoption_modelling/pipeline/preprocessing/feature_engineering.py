@@ -17,6 +17,31 @@ from heat_pump_adoption_modelling.pipeline.preprocessing import data_cleaning
 # ----------------------------------------------------------------------------------
 
 
+def get_coordinates(df):
+    """Add coordinates (longitude and latitude) to the dataframe
+    based on the postcode.
+
+    df : pandas.DataFrame
+        EPC dataframe.
+
+    Return
+    ---------
+    df : pandas.DataFrame
+        Same dataframe with longitude and latitude columns added."""
+
+    # Get postcode/coordinates
+    location_df = location_data.get_location_data()
+
+    # Reformat POSTCODE
+    df = data_cleaning.reformat_postcode(df)
+    location_df = data_cleaning.reformat_postcode(location_df)
+
+    # Merge with location data
+    df = pd.merge(df, location_df, on=["POSTCODE"])
+
+    return df
+
+
 def short_hash(text):
     """Generate a unique short hash for given string.
 
@@ -345,6 +370,16 @@ def get_heating_features(df, fine_grained_HP_types=False):
     df["HP_INSTALLED"] = has_hp_tags
     df["HP_TYPE"] = hp_types
 
+    # Also consider secondheat description and other languages
+    df["HP_INSTALLED"] = np.where(
+        (df["HP_INSTALLED"])
+        | (df["SECONDHEAT_DESCRIPTION"].str.lower().str.contains("heat pump"))
+        | (df["MAINHEAT_DESCRIPTION"].str.lower().str.contains("pumpa teas"))
+        | (df["MAINHEAT_DESCRIPTION"].str.lower().str.contains("pwmp gwres")),
+        True,
+        False,
+    )
+
     return df
 
 
@@ -457,9 +492,9 @@ def filter_by_year(df, building_reference, year, up_to=True, selection=None):
     if year != "all" and year is not None:
 
         if up_to:
-            df = df.loc[df["ENTRY_YEAR_INT"] <= year]
+            df = df.loc[df["INSPECTION_DATE"].dt.year <= year]
         else:
-            df = df.loc[df["ENTRY_YEAR_INT"] == year]
+            df = df.loc[df["INSPECTION_DATE"].dt.year == year]
 
     # Filter by selection
     selection_dict = {"first entry": "first", "latest entry": "last"}
@@ -467,7 +502,7 @@ def filter_by_year(df, building_reference, year, up_to=True, selection=None):
     if selection in ["first entry", "latest entry"]:
 
         df = (
-            df.sort_values("INSPECTION_DATE_AS_NUM", ascending=True)
+            df.sort_values("INSPECTION_DATE", ascending=True)
             .drop_duplicates(
                 subset=[building_reference], keep=selection_dict[selection]
             )
@@ -530,8 +565,14 @@ def get_postcode_coordinates(df):
     df = data_cleaning.reformat_postcode(df)
     postcode_coordinates_df = data_cleaning.reformat_postcode(postcode_coordinates_df)
 
+    postcode_coordinates_df["POSTCODE"] = (
+        postcode_coordinates_df["POSTCODE"].str.upper().str.replace(" ", "")
+    )
+
     # Merge with location data
     df = pd.merge(df, postcode_coordinates_df, on=["POSTCODE"])
+
+    print(df.shape)
 
     return df
 
@@ -553,12 +594,13 @@ def get_building_entry_feature(df, feature):
         EPC dataframe with # entry feature."""
 
     # Catch invalid inputs
-    if feature not in ["BUILDING_REFERENCE_NUMBER", "BUILDING_ID"]:
+    if feature not in ["BUILDING_REFERENCE_NUMBER", "BUILDING_ID", "UPRN"]:
         raise IOError("Feature '{}' is not a valid feature.".format(feature))
 
     feature_name_dict = {
         "BUILDING_REFERENCE_NUMBER": "N_ENTRIES",
         "BUILDING_ID": "N_ENTRIES_BUILD_ID",
+        "UPRN": "N_SAME_UPRN_ENTRIES",
     }
 
     # Get name of new feature
@@ -585,6 +627,9 @@ def get_building_entries(df):
     if "BUILDING_ID" in df.columns:
         df = get_building_entry_feature(df, "BUILDING_ID")
 
+    if "UPRN" in df.columns:
+        df = get_building_entry_feature(df, "UPRN")
+
     return df
 
 
@@ -603,7 +648,7 @@ def get_additional_features(df):
     df : pandas.DataFrame
         Updated dataframe with new features."""
 
-    df = get_date_features(df)
+    # df = get_date_features(df)
 
     df = get_unique_building_id(df)
     df = get_building_entries(df)

@@ -9,6 +9,7 @@ import pandas as pd
 import numpy as np
 from zipfile import ZipFile
 
+
 from heat_pump_adoption_modelling import PROJECT_DIR, get_yaml_config, Path
 
 # ---------------------------------------------------------------------------------
@@ -53,6 +54,74 @@ def extract_data(file_path):
         print("Done!")
 
 
+def load_wales_certificates(subset=None, usecols=None, nrows=None, low_memory=False):
+
+    """Load the England and/or Wales EPC data.
+
+    Parameters
+    ----------
+    subset : {'England', 'Wales', None}, default=None
+        EPC certificate area subset.
+        If None, then the data for both England and Wales will be loaded.
+
+    usecols : list, default=None
+        List of features/columns to load from EPC dataset.
+        If None, then all features will be loaded.
+
+    nrows : int, default=None
+        Number of rows of file to read.
+
+    low_memory : bool, default=False
+        Internally process the file in chunks, resulting in lower memory use while parsing,
+        but possibly mixed type inference.
+        To ensure no mixed types either set False, or specify the type with the dtype parameter.
+
+    Return
+    ---------
+    EPC_certs : pandas.DateFrame
+        England/Wales EPC certificate data for given features."""
+
+    # If sample file does not exist (probably just not unzipped), unzip the data
+    if not Path(
+        RAW_ENG_WALES_DATA_PATH + "domestic-W06000015-Cardiff/certificates.csv"
+    ).is_file():
+        extract_data(RAW_ENG_WALES_DATA_ZIP)
+
+    # Get all directories
+    directories = [
+        dir
+        for dir in os.listdir(RAW_ENG_WALES_DATA_PATH)
+        if not (dir.startswith(".") or dir.endswith(".txt") or dir.endswith(".zip"))
+    ]
+
+    # Set subset dict to select respective subset directories
+    start_with_dict = {"Wales": "domestic-W", "England": "domestic-E"}
+
+    # Get directories for given subset
+    if subset in start_with_dict:
+        directories = [
+            dir for dir in directories if dir.startswith(start_with_dict[subset])
+        ]
+
+    # Load EPC certificates for given subset
+    # Only load columns of interest (if given)
+    epc_certs = [
+        pd.read_csv(
+            RAW_ENG_WALES_DATA_PATH + directory + "/recommendations.csv",
+            low_memory=low_memory,
+            usecols=usecols,
+            nrows=nrows,
+        )
+        for directory in directories
+    ]
+
+    # Concatenate single dataframes into dataframe
+    epc_certs = pd.concat(epc_certs, axis=0)
+    epc_certs["COUNTRY"] = subset
+
+    return epc_certs
+
+
 def load_scotland_data(usecols=None, nrows=None, low_memory=False):
     """Load the Scotland EPC data.
 
@@ -87,6 +156,7 @@ def load_scotland_data(usecols=None, nrows=None, low_memory=False):
         # Fix columns ("WALLS" features are labeled differently here)
         usecols = [re.sub("WALLS_", "WALL_", col) for col in usecols]
         usecols = [re.sub("POSTTOWN", "POST_TOWN", col) for col in usecols]
+        usecols = [col for col in usecols if col not in ["UPRN"]]
 
     # Get all directories
     all_directories = os.listdir(RAW_SCOTLAND_DATA_PATH)
@@ -115,6 +185,7 @@ def load_scotland_data(usecols=None, nrows=None, low_memory=False):
             "POST_TOWN": "POSTTOWN",
         }
     )
+    usecols = [col for col in usecols if col not in ["UPRN"]]
 
     return epc_certs
 
@@ -182,6 +253,8 @@ def load_wales_england_data(subset=None, usecols=None, nrows=None, low_memory=Fa
     # Concatenate single dataframes into dataframe
     epc_certs = pd.concat(epc_certs, axis=0)
     epc_certs["COUNTRY"] = subset
+
+    epc_certs["UPRN"].fillna(epc_certs.BUILDING_REFERENCE_NUMBER, inplace=True)
 
     return epc_certs
 
@@ -297,6 +370,7 @@ def load_preprocessed_epc_data(
     usecols=None,
     nrows=None,
     snapshot_data=False,
+    dtype={},
     low_memory=False,
 ):
     """Load the EPC dataset including England, Wales and Scotland.
@@ -322,7 +396,6 @@ def load_preprocessed_epc_data(
 
     nrows : int, default=None
         Number of rows of file to read.
-
 
     snapshot_data : bool, default=False
         If True, load the snapshot version of the preprocessed EPC data saved in /inputs
@@ -355,7 +428,16 @@ def load_preprocessed_epc_data(
         extract_data(file_path + ".zip")
 
     # Load  data
-    epc_df = pd.read_csv(file_path, usecols=usecols, nrows=nrows, low_memory=low_memory)
+    epc_df = pd.read_csv(
+        file_path,
+        usecols=usecols,
+        nrows=nrows,
+        dtype=dtype,
+    )  # , low_memory=low_memory)
+
+    for col in config["parse_dates"]:
+        if col in epc_df.columns:
+            epc_df[col] = pd.to_datetime(epc_df[col])
 
     return epc_df
 

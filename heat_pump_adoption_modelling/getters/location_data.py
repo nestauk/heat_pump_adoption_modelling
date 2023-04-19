@@ -36,7 +36,7 @@ def get_postcode_coordinates():
     del postcode_coordinates_df["id"]
 
     # Rename columns to match EPC data
-    location_data_df = postcode_coordinates_df.rename(
+    postcode_coordinates_df = postcode_coordinates_df.rename(
         columns={
             "postcode": "POSTCODE",
             "latitude": "LATITUDE",
@@ -44,3 +44,33 @@ def get_postcode_coordinates():
         }
     )
     return postcode_coordinates_df
+
+
+def get_location_data():
+    """Load location data (postcode, latitude, longitude).
+
+    Parameters
+    ----------
+    None
+
+    Return
+    ---------
+    location_data_df : pandas.DateFrame
+        Location data (postcode, latitude, longitude).
+    """
+
+    # Load data
+    location_data_df = pd.read_csv(LOCATION_PATH)
+
+    # Remove ID (not necessary and conflicts with EPC dataframe)
+    del location_data_df["id"]
+
+    # Rename columns to match EPC data
+    location_data_df = location_data_df.rename(
+        columns={
+            "postcode": "POSTCODE",
+            "latitude": "LATITUDE",
+            "longitude": "LONGITUDE",
+        }
+    )
+    return location_data_df
