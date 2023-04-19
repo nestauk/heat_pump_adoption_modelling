@@ -92,6 +92,7 @@ order_dict = {
     ],
     "ENERGY_RATING_CAT": ["unknown", "E-G", "C-D", "A-B"],
     "GLAZED_TYPE": ["unknown", "single glazing", "double glazing", "triple glazing"],
+    "N_SAME_UPRN_ENTRIES": ["1", "2", "3", "4", "5.0+"],
 }
 
 eff_value_dict = {
@@ -161,6 +162,9 @@ def ordinal_encode_cat_features(df, features):
     ---------
     df : pandas.DataFrame
         Dataframe with ordinal encoded features."""
+
+    df["N_SAME_UPRN_ENTRIES"] = df["N_SAME_UPRN_ENTRIES"].replace(["5.0+"], 5)
+    df["N_SAME_UPRN_ENTRIES"] = df["N_SAME_UPRN_ENTRIES"].astype("int")
 
     for feat in features:
 
@@ -266,9 +270,14 @@ def feature_encoding_pipeline(
 
     # Get all only numeric features
     num_features = df.select_dtypes(include=np.number).columns.tolist()
+    num_features = [f for f in num_features if f not in ["BUILDING_ID", "UPRN"]]
+
+    print("numeric", num_features)
 
     # Ordinal encoding
     df = ordinal_encode_cat_features(df, ordinal_features)
+
+    print("ordinal", ordinal_features)
 
     # Optional one-hot encoding
     if (onehot_features is not None) or onehot_features:
@@ -283,6 +292,8 @@ def feature_encoding_pipeline(
                 if (feature not in ordinal_features) and (feature not in num_features)
             ]
 
+            print("cat", categorical_features)
+
             # Convert target variables into list
             keep_features = [] if unaltered_features is None else unaltered_features
             keep_features = (
@@ -294,7 +305,21 @@ def feature_encoding_pipeline(
                 f for f in categorical_features if f not in keep_features
             ]
 
+        print("keep features", keep_features)
+        print("one hot", one_hot_features)
+        print("unaltered features", unaltered_features)
+
         # One-hot encoding
         df = one_hot_encoding(df, one_hot_features)
 
     return df
+
+
+# numeric ['IMD Rank', 'IMD Decile', 'Income Score', 'Employment Score', 'ENERGY_CONSUMPTION_CURRENT', 'TOTAL_FLOOR_AREA', 'CURRENT_ENERGY_EFFICIENCY', 'CO2_EMISSIONS_CURRENT', 'HEATING_COST_CURRENT', 'HOT_WATER_COST_CURRENT', 'LIGHTING_COST_CURRENT', 'FLOOR_HEIGHT', 'EXTENSION_COUNT', 'FLOOR_LEVEL', 'GLAZED_AREA', 'NUMBER_HABITABLE_ROOMS', 'MAIN_HEATING_CONTROLS', 'MULTI_GLAZE_PROPORTION', 'PHOTO_SUPPLY', 'WIND_TURBINE_COUNT', 'UPRN', 'BUILDING_ID', 'DIFF_POT_ENERGY_RATING', 'version', 'n_certificates', '# records']
+# ordinal ['MAINHEAT_ENERGY_EFF', 'CURRENT_ENERGY_RATING', 'POTENTIAL_ENERGY_RATING', 'FLOOR_ENERGY_EFF', 'WINDOWS_ENERGY_EFF', 'HOT_WATER_ENERGY_EFF', 'LIGHTING_ENERGY_EFF', 'GLAZED_TYPE', 'MAINHEATC_ENERGY_EFF', 'WALLS_ENERGY_EFF', 'ROOF_ENERGY_EFF', 'MAINS_GAS_FLAG', 'CONSTRUCTION_AGE_BAND_ORIGINAL', 'CONSTRUCTION_AGE_BAND', 'N_ENTRIES', 'N_ENTRIES_BUILD_ID', 'ENERGY_RATING_CAT']
+# one hot ['INSPECTION_DATE', 'SECONDHEAT_DESCRIPTION', 'MECHANICAL_VENTILATION', 'ENERGY_TARIFF', 'SOLAR_WATER_HEATING_FLAG', 'TENURE', 'TRANSACTION_TYPE', 'BUILT_FORM', 'PROPERTY_TYPE', 'COUNTRY', 'N_SAME_UPRN_ENTRIES', 'HEATING_SYSTEM', 'HEATING_FUEL', 'MCS address', 'new', 'alt_type', 'installation_type', 'ANY_HP', 'HP_AT_FIRST', 'HP_AT_LAST', 'HP_LOST', 'HP_ADDED', 'HP_IN_THE_MIDDLE', 'ARTIFICIALLY_DUPL', 'EPC HP entry before MCS', 'No EPC HP entry after MCS']
+# Before one hot encoding: (4945597, 73)
+##unaltered features ['POSTCODE', 'POSTCODE_DISTRICT', 'POSTCODE_SECTOR', 'POSTCODE_UNIT', 'HP_INSTALLED', 'N_ENTRIES_BUILD_ID', 'POSTCODE_AREA', 'HP_INSTALL_DATE', 'UPRN']
+
+
+# remove = [ 'version', 'n_certificates', '# records', 'INSPECTION_DATE',  'MCS address', 'new', 'alt_type', 'installation_type', 'ANY_HP', 'HP_AT_FIRST', 'HP_AT_LAST', 'HP_LOST', 'HP_ADDED', 'HP_IN_THE_MIDDLE', 'ARTIFICIALLY_DUPL', 'EPC HP entry before MCS', 'No EPC HP entry after MCS']

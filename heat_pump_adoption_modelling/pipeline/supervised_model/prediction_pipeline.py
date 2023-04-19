@@ -31,9 +31,9 @@ SUPERVISED_MODEL_OUTPUT = str(PROJECT_DIR) + config["SUPERVISED_MODEL_OUTPUT"]
 IDENTIFIER = config["IDENTIFIER"]
 
 
-def balance_set(X, target_variable, false_ratio=0.9):
+def balance_set(X, target_variable, false_ratio=0.8, binary=True):
     """Balance the training set.
-    If false ratio set to 0.9, then 90% of the training data
+    If false ratio set to 0.8, then 80% of the training data
     will have "False/No HP Installed" as a label.
 
     Parameters
@@ -44,7 +44,7 @@ def balance_set(X, target_variable, false_ratio=0.9):
     target_variable : str
         Variable/feature that is going to be predicted.
 
-    false_ratio : float, default=0.9
+    false_ratio : float, default=0.8
         When re-balancing the set, use the false_ratio
         to determine the amount of False labels.
 
@@ -55,9 +55,13 @@ def balance_set(X, target_variable, false_ratio=0.9):
 
     multiplier = false_ratio / (1 - false_ratio)
 
-    # Seperate samples with and without heat pumps
-    X_true = X.loc[X[target_variable] == True]
-    X_false = X.loc[X[target_variable] == False]
+    if binary:
+        # Seperate samples with and without heat pumps
+        X_true = X.loc[X[target_variable] == True]
+        X_false = X.loc[X[target_variable] == False]
+    else:
+        X_true = X.loc[X[target_variable] > 0.0]
+        X_false = X.loc[X[target_variable] == 0.0]
 
     # Shuffle and adjust size
     X_false = X_false.sample(frac=1)
@@ -89,7 +93,7 @@ def get_HP_status_changes(df):
         Dataframe with added future heat pump status."""
 
     # Get properties with multiple entries
-    multiple_entry_epcs = df.loc[df["N_ENTRIES_BUILD_ID"] >= 2]
+    multiple_entry_epcs = df.loc[df["N_SAME_UPRN_ENTRIES"] >= 2]
 
     # Get latest and first EPC entry
     latest_epc = feature_engineering.filter_by_year(
@@ -161,13 +165,13 @@ def get_data_with_labels(
         Labels / ground truth."""
 
     settings_dict = {
-        "Current HP Status": [["HP_INSTALLED"], balanced_set],
-        "Future HP Status": [["HP_ADDED"], balanced_set],
-        "HP Growth by Area": [["GROWTH", "HP_COVERAGE_FUTURE"], False],
+        "Current HP Status": [["HP_INSTALLED"], balanced_set, True],
+        "Future HP Status": [["HP_ADDED"], balanced_set, True],
+        "HP Growth by Area": [["GROWTH", "HP_COVERAGE_FUTURE"], balanced_set, False],
     }
 
     # Get settings based on version
-    target_variable, balanced_set = settings_dict[version]
+    target_variable, balanced_set, binary = settings_dict[version]
 
     # Shuffle data
     X = df.copy().sample(frac=1)
@@ -178,18 +182,38 @@ def get_data_with_labels(
         X = feature_engineering.filter_by_year(
             df, IDENTIFIER, None, selection="latest entry"
         )
-        drop_features += [
-            "HEATING_SYSTEM",
-            "MAINHEAT_DESCRIPTION",
-            "HP_INSTALL_DATE",
-            "INSPECTION_DATE_AS_NUM",
-        ] + target_variable
+        drop_features += (
+            [
+                "HEATING_SYSTEM",
+                "MAINHEAT_DESCRIPTION",
+                "HP_INSTALL_DATE",
+                "INSPECTION_DATE",
+                "BUILDING_ID",
+                "UPRN",
+            ]
+            + target_variable
+            + [
+                f
+                for f in df.columns
+                if f.startswith("HEATING_SYSTEM")
+                or f.startswith("SECONDHEAT_DESCRIPTION")
+            ]
+        )
 
     # For future status, use changed heat pump status data
     elif version == "Future HP Status":
 
         X = get_HP_status_changes(df)
-        drop_features += ["HP_INSTALL_DATE", "INSPECTION_DATE_AS_NUM"] + target_variable
+        drop_features += (
+            [
+                "HP_INSTALL_DATE",
+                "INSPECTION_DATE",
+                "BUILDING_ID",
+                "UPRN",
+            ]
+            + target_variable
+            + [f for f in df.columns if f.startswith("SECONDHEAT_DESCRIPTION")]
+        )
 
     elif version == "HP Growth by Area":
         drop_features += ["HP_INSTALL_DATE"] + target_variable
@@ -199,7 +223,7 @@ def get_data_with_labels(
 
     # Balance the feature set
     if balanced_set:
-        X = balance_set(X, target_variable[0])
+        X = balance_set(X, target_variable[0], binary=binary)
 
     # Reset index and select the label / ground truth
     X.reset_index(inplace=True, drop=True)
@@ -251,7 +275,7 @@ def predict_heat_pump_adoption(X, y, version, save_predictions=False):
         "HP Growth by Area": (
             "postcode_based_predictions_with_{}.csv",
             None,
-            ["GROWTH", "HP_COVERAGE_FUTURE"],
+            ["HP_COVERAGE_FUTURE", "GROWTH"],
             model_settings.postcode_level_model_dict,
         ),
     }
@@ -544,6 +568,8 @@ def train_and_evaluate(
             # Fix below zero and above one values
             preds[preds < 0] = 0.0
             preds[preds > 1.0] = 1.0
+            sols[sols < 0] = 0.0
+            sols[sols > 1.0] = 1.0
 
             # Map prediction to percentage bin
             predictions, solutions, label_dict = plotting_utils.map_percentage_to_bin(
@@ -645,13 +671,15 @@ def coefficient_importance(X, y, model_name, version="Future HP Status", pca=Fal
 
     Return: None"""
 
+    X = X.drop(columns="training set")
+
     target = "HP_INSTALLED" if version == "Current HP Status" else "HP_ADDED"
     y = y[target]
 
     # Preprocessing pipeline with or without PCA
     if pca:
         X_prep = model_settings.prepr_pipeline.fit_transform(X)
-        pca_tag = "using PCA"
+        pca_tag = " using PCA"
     else:
         X_prep = model_settings.prepr_pipeline_no_pca.fit_transform(X)
         pca_tag = ""
@@ -688,13 +716,13 @@ def coefficient_importance(X, y, model_name, version="Future HP Status", pca=Fal
         model,
         feature_names,
         ["HP Installed"],
-        "{}: Coefficient Contributions {}".format(version, pca_tag),
+        "{}: Coefficient Contributions{}".format(version, pca_tag),
     )
 
     # Plot most important features
     plotting_utils.get_most_important_coefficients(
         model,
         feature_names,
-        "{}: Coefficient Importance {}".format(version, pca_tag),
+        "{}: Coefficient Importance{}".format(version, pca_tag),
         X_prep,
     )

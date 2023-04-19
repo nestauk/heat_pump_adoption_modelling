@@ -36,9 +36,10 @@ ordinal_features = [
     "MAINS_GAS_FLAG",
     "CONSTRUCTION_AGE_BAND_ORIGINAL",
     "CONSTRUCTION_AGE_BAND",
-    "N_ENTRIES",
-    "N_ENTRIES_BUILD_ID",
+    # "N_ENTRIES",
+    # "N_ENTRIES_BUILD_ID",
     "ENERGY_RATING_CAT",
+    # "N_SAME_UPRN_ENTRIES",
 ]
 
 drop_features = [
@@ -69,6 +70,24 @@ drop_features = [
     "MCS_AVAILABLE",
     "HAS_HP_AT_SOME_POINT",
     "HP_TYPE",
+    "version",
+    "n_certificates",
+    "# records",
+    "MCS address",
+    # "new",
+    "alt_type",
+    "installation_type",
+    "ANY_HP",
+    "HP_AT_FIRST",
+    "HP_AT_LAST",
+    "HP_LOST",
+    # "HP_ADDED",
+    "HP_IN_THE_MIDDLE",
+    "ARTIFICIALLY_DUPL",
+    "EPC HP entry before MCS",
+    "No EPC HP entry after MCS",
+    "N_ENTRIES",
+    "N_ENTRIES_BUILD_ID",
 ]
 
 # Load config file
@@ -169,7 +188,7 @@ def get_mcs_install_dates(epc_df):
             "address_3",
             "postcode",
             "version",
-            "new",
+            # "new",
             "n_certificates",
             "alt_type",
             "installation_type",
@@ -244,9 +263,9 @@ def get_mcs_install_dates(epc_df):
         mcs_data.set_index("compressed_epc_address").to_dict()["version"]
     )
 
-    epc_df["new"] = epc_df["original_address"].map(
-        mcs_data.set_index("compressed_epc_address").to_dict()["new"]
-    )
+    # epc_df["new"] = epc_df["original_address"].map(
+    #     mcs_data.set_index("compressed_epc_address").to_dict()["new"]
+    # )
 
     epc_df["n_certificates"] = epc_df["original_address"].map(
         mcs_data.set_index("compressed_epc_address").to_dict()["n_certificates"]
@@ -539,8 +558,6 @@ def get_aggregated_temp_data(
         df, source_year, target_year, postcode_level, normalize_by="total"
     )
 
-    print(drop_features + [IDENTIFIER, "HP_INSTALLED"])
-
     # Drop unnecessary features
     source_year = source_year.drop(columns=drop_features + [IDENTIFIER, "HP_INSTALLED"])
 
@@ -651,9 +668,12 @@ def encode_features_for_hp_status(epc_df, subset="5m"):
             "POSTCODE_SECTOR",
             "POSTCODE_UNIT",
             "HP_INSTALLED",
-            "N_ENTRIES_BUILD_ID",
+            "N_SAME_UPRN_ENTRIES",
             "POSTCODE_AREA",
             "HP_INSTALL_DATE",
+            "UPRN",
+            "BUILDING_ID",
+            "INSPECTION_DATE",
         ],
         drop_features=drop_features,
     )
@@ -707,6 +727,8 @@ def preprocess_data(epc_df, encode_features=False, subset="5m"):
 
         print("encoding")
 
+        print(epc_df.columns)
+
         epc_df = feature_encoding.feature_encoding_pipeline(
             epc_df,
             ordinal_features,
@@ -718,8 +740,11 @@ def preprocess_data(epc_df, encode_features=False, subset="5m"):
                 "POSTCODE_SECTOR",
                 "POSTCODE_UNIT",
                 "HP_INSTALLED",
-                "N_ENTRIES_BUILD_ID",
+                "N_SAME_UPRN_ENTRIES",
                 "POSTCODE_AREA",
+                "UPRN",
+                "BUILDING_ID",
+                "INSPECTION_DATE",
             ],
             drop_features=drop_features,
         )
@@ -769,7 +794,7 @@ def main():
     postcode_level = "POSTCODE_UNIT"
 
     get_aggregated_temp_data(
-        epc_df, 2015, 2018, postcode_level, drop_features=drop_features
+        epc_df, 2015, 2018, postcode_level, drop_features=["HP_INSTALL_DATE"]
     )
 
 

@@ -205,6 +205,7 @@ dtypes:
     "CURR_ENERGY_RATING_NUM": float,
     "ENERGY_RATING_CAT": str,
     "DIFF_POT_ENERGY_RATING": float,
+    "UPRN": str,
   }
 
 parse_dates:

@@ -36,7 +36,6 @@ def plot_explained_variance(dim_reduction, title):
     ----------
     None"""
 
-    print(title)
     # Explained variance ratio (how much is covered by how many components)
 
     # Per component
@@ -166,15 +165,18 @@ def plot_confusion_matrix(solutions, predictions, label_set=None, title=""):
     plt.gca().set_yticklabels(label_set)
     plt.gca().invert_yaxis()
 
-    plt.savefig(FIG_PATH / title, format="png", dpi=500, bbox_inches="tight")
+    plt.savefig(
+        FIG_PATH / (title.replace(":\n", " -") + ".png"),
+        format="png",
+        dpi=500,
+        bbox_inches="tight",
+    )
 
     # Show plot
     plt.show()
 
 
 def get_most_important_coefficients(model, feature_names, title, X, top_features=10):
-
-    import matplotlib.pyplot as plt
 
     if model.__class__.__name__ == "SVC":
         coef = model.coef_
@@ -204,7 +206,9 @@ def get_most_important_coefficients(model, feature_names, title, X, top_features
         ha="right",
     )
     plt.title(title)
-    plt.savefig(FIG_PATH / (title + ".png"), dpi=200, bbox_inches="tight")
+    plt.savefig(
+        FIG_PATH / (title.replace(":", " -") + ".png"), dpi=200, bbox_inches="tight"
+    )
 
     plt.show()
 
@@ -265,9 +269,6 @@ def plot_feature_coefficients(classifier, feature_names, label_set, title):
     sorted_fnames = feature_names[sort_idx]
 
     # Make subplots
-
-    print(plt)
-
     x_fig, x_axis = plt.subplots(2, 1, figsize=FIGSIZE)
 
     odd_n_rows = False
@@ -291,7 +292,10 @@ def plot_feature_coefficients(classifier, feature_names, label_set, title):
         vmax=2.5,
     )
 
-    x_axis[0].set_title(title + "\n", fontdict={"fontsize": 30, "fontweight": "medium"})
+    x_axis[0].set_title(
+        title + "\n",
+        fontdict={"fontsize": 30, "fontweight": "medium"},
+    )
 
     # Set y ticks (number of classes)
     x_axis[0].set_yticks(range(len(label_set)))
@@ -332,11 +336,11 @@ def plot_feature_coefficients(classifier, feature_names, label_set, title):
     cbar = x_fig.colorbar(im_0, cax=cbar_ax)
     cbar.ax.tick_params(labelsize=24)
 
+    # plt.title(title)
+    plt.savefig(FIG_PATH / (title.replace(":", " -") + ".png"), format="png", dpi=500)
+
     # Show
     plt.show()
-
-    # plt.title(title)
-    plt.savefig(FIG_PATH / (title + ".png"), format="png", dpi=500)
 
 
 def map_percentage_to_bin(predictions, solutions, interval=5):
@@ -363,8 +367,19 @@ def map_percentage_to_bin(predictions, solutions, interval=5):
     predictions = np.round(predictions, 2).astype("float")
     solutions = np.round(solutions, 2).astype("float")
 
+    # print("-----")
+    # print(predictions)
+    # print(solutions)
+    # print(np.unique(predictions, return_counts=True))
+    # print(np.unique(solutions, return_counts=True))
+
     predictions_cats = np.vectorize(cat_dict.get)(predictions)
     solutions_cats = np.vectorize(cat_dict.get)(solutions)
+
+    # print(solutions_cats)
+    # print(np.unique(predictions_cats, return_counts=True))
+    # print(np.unique(solutions_cats, return_counts=True))
+    # print(label_dict)
 
     predictions_labels = np.vectorize(label_dict.get)(predictions_cats)
     solutions_labels = np.vectorize(label_dict.get)(solutions_cats)

@@ -33,16 +33,23 @@ prepr_pipeline_no_pca = Pipeline(
 )
 
 best_params = {
-    "Linear Support Vector Classifier":  # { "alpha": 0.0001,"epsilon": 0.0001,
-    # "penalty": "l2","tol": 0.001,}
-    {
+    "Linear Support Vector Classifier": {  # { "alpha": 0.0001,"epsilon": 0.0001, "penalty": "l2","tol": 0.001}
         "alpha": 0.0001,
         "epsilon": 0.0001,
         "penalty": "elasticnet",
         "tol": 0.0005,
         "max_iter": 5000,
-    }
+    },
+    "Random Forest Regressor": {
+        "n_estimators": 175,
+        "min_samples_split": 15,
+        "min_samples_leaf": 8,
+        "max_features": 5,
+        "max_depth": 90,
+        "bootstrap": True,
+    },
 }
+
 
 household_level_model_dict = {
     "Logistic Regression": LogisticRegression(random_state=42),
@@ -55,5 +62,5 @@ postcode_level_model_dict = {
     "Random Forest Regressor": RandomForestRegressor(),
     #  "SVM Regressor": svm.SVR(),
     #  "Linear Regression": LinearRegression(),
-    #   "Decision Tree Regressor": DecisionTreeRegressor(),
+    #  "Decision Tree Regressor": DecisionTreeRegressor(),
 }
