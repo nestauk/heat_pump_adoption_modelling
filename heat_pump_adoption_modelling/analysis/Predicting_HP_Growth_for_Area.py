@@ -3,11 +3,12 @@
 #   jupytext:
 #     cell_metadata_filter: -all
 #     comment_magics: true
+#     formats: ipynb,py:hydrogen
 #     text_representation:
 #       extension: .py
-#       format_name: percent
+#       format_name: hydrogen
 #       format_version: '1.3'
-#       jupytext_version: 1.13.0
+#       jupytext_version: 1.13.8
 #   kernelspec:
 #     display_name: heat_pump_adoption_modelling
 #     language: python
@@ -24,36 +25,22 @@
 # %load_ext autoreload
 # %autoreload 2
 
-from heat_pump_adoption_modelling import PROJECT_DIR, get_yaml_config, Path
 
-
-from heat_pump_adoption_modelling.getters import epc_data, deprivation_data
-from heat_pump_adoption_modelling import PROJECT_DIR
-from heat_pump_adoption_modelling.pipeline.encoding import (
-    feature_encoding,
-    category_reduction,
-)
 from heat_pump_adoption_modelling.pipeline.supervised_model import (
-    data_aggregation,
     data_preprocessing,
     hp_growth_prediction,
-    hp_status_prediction,
     prediction_pipeline,
 )
 from heat_pump_adoption_modelling.pipeline.preprocessing import (
-    data_cleaning,
     feature_engineering,
 )
 
-from heat_pump_adoption_modelling.pipeline.supervised_model.utils import (
-    error_analysis,
-    plotting_utils,
-    hyperparameter_screening,
-)
+from heat_pump_adoption_modelling.pipeline.supervised_model.utils import error_analysis
 from heat_pump_adoption_modelling.pipeline.supervised_model.utils import kepler
 
 import pandas as pd
 from keplergl import KeplerGl
+
 import matplotlib as mpl
 
 mpl.rcParams.update(mpl.rcParamsDefault)
@@ -65,7 +52,7 @@ from ipywidgets import interact
 
 # %%
 # If preloaded file is not yet available:
-epc_df = data_preprocessing.load_epc_samples(subset="5m", preload=False)
+epc_df = data_preprocessing.load_epc_samples(subset="5m", preload=True)
 
 # %%
 epc_df = data_preprocessing.preprocess_data(epc_df, encode_features=False)
@@ -77,45 +64,21 @@ epc_df = pd.read_csv(
 )
 
 # %%
-epc_df.columns
-
-# %%
 epc_df = epc_df.drop(columns=data_preprocessing.drop_features)
 epc_df.head()
-
-# %%
-epc_df.columns
 
 # %%
 drop_features = [
     "HP_INSTALL_DATE",
     "INSPECTION_DATE",
-    "MCS address",
-    "version",
-    "EPC HP entry before MCS",
-    "No EPC HP entry after MCS",
-    "MCS address",
-    "version",
-    "new",
-    "n_certificates",
-    "alt_type",
-    "installation_type",
-    "# records",
-    "ANY_HP",
-    "HP_AT_FIRST",
-    "HP_AT_LAST",
-    "HP_LOST",
     "HP_ADDED",
-    "HP_IN_THE_MIDDLE",
-    "ARTIFICIALLY_DUPL",
     "SECONDHEAT_DESCRIPTION",
 ]
 
 postcode_level = "POSTCODE_UNIT"
 
-print(epc_df.shape)
 aggr_temp = data_preprocessing.get_aggregated_temp_data(
-    epc_df, 2015, 2018, postcode_level, drop_features=drop_features
+    epc_df, 2012, 2021, postcode_level, drop_features=drop_features
 )
 print(aggr_temp.shape)
 
@@ -124,26 +87,44 @@ print(aggr_temp.shape)
 
 # %%
 X, y = prediction_pipeline.get_data_with_labels(
-    aggr_temp, version="HP Growth by Area", drop_features=[]
+    aggr_temp, version="HP Growth by Area", drop_features=[], balanced_set=True
 )
 
 print(X.shape)
 X.head()
 
+# %%
+b = y.shape[0]
+a = y.loc[y["HP_COVERAGE_FUTURE"] == 0.0].shape[0]
+
+print(b)
+print(a)
+
+100 / b * a
+
+
 # %% [markdown]
 # #### Train the Predictive Model
 
 # %%
-X.shape
+y
 
 # %%
-hyperparameter_screening.grid_screening(
-    "Random Forest Regressor",
-    X[:5000],
-    y[:5000],
-    "neg_mean_squared_error",
-    drop_features,
-)
+# Commented out to save time
+
+# hyperparameter_screening.grid_screening(
+#     "Random Forest Regressor",
+#     #"Linear Support Vector Classifier",
+#     X,
+#     y['GROWTH'],
+#     "neg_mean_squared_error",
+#     drop_features,
+# )
+
+# %%
+from heat_pump_adoption_modelling.pipeline.supervised_model.utils import model_settings
+
+model_settings.best_params["Random Forest Regressor"]
 
 # %%
 prediction_pipeline.predict_heat_pump_adoption(
@@ -154,8 +135,6 @@ prediction_pipeline.predict_heat_pump_adoption(
 # ### Error Analysis
 #
 # ##### Does not yet have to be reviewed.
-
-# %%
 
 # %% [markdown]
 # Predicting HP Growth by Area...
@@ -311,7 +290,7 @@ temp_model_map_coverage.add_data(
             "HP Coverage",
             "# Properties",
             "training set",
-            "No growth",
+            # "No growth",
             "POSTCODE",
         ]
     ],
@@ -340,7 +319,7 @@ temp_model_map_growth.add_data(
             "Growth",
             "# Properties",
             "training set",
-            "No growth",
+            # "No growth",
             "POSTCODE",
         ]
     ],
@@ -351,7 +330,6 @@ temp_model_map_growth
 
 # %%
 kepler.save_config(temp_model_map_growth, kepler.KEPLER_PATH + "growth.txt")
-
 temp_model_map_growth.save_to_html(file_name=kepler.KEPLER_PATH + "Growth.html")
 
 # %%

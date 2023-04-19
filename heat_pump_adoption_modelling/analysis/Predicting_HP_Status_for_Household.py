@@ -3,11 +3,12 @@
 #   jupytext:
 #     cell_metadata_filter: -all
 #     comment_magics: true
+#     formats: ipynb,py:hydrogen
 #     text_representation:
 #       extension: .py
-#       format_name: percent
+#       format_name: hydrogen
 #       format_version: '1.3'
-#       jupytext_version: 1.13.0
+#       jupytext_version: 1.13.8
 #   kernelspec:
 #     display_name: heat_pump_adoption_modelling
 #     language: python
@@ -24,49 +25,34 @@
 # %load_ext autoreload
 # %autoreload 2
 
-from heat_pump_adoption_modelling import PROJECT_DIR, get_yaml_config, Path
-from heat_pump_adoption_modelling.getters import epc_data, deprivation_data
-
 from heat_pump_adoption_modelling.pipeline.supervised_model import (
-    data_aggregation,
     data_preprocessing,
-    hp_growth_prediction,
     hp_status_prediction,
     prediction_pipeline,
-)
-
-from heat_pump_adoption_modelling.pipeline.preprocessing import (
-    data_cleaning,
-    feature_engineering,
-)
-
-from heat_pump_adoption_modelling.pipeline.encoding import (
-    feature_encoding,
-    category_reduction,
 )
 
 from heat_pump_adoption_modelling.pipeline.supervised_model.utils import plotting_utils
 
 import pandas as pd
-
 import matplotlib as mpl
 
 mpl.rcParams.update(mpl.rcParamsDefault)
-
-from ipywidgets import interact
 
 # %% [markdown]
 # ### Loading, preprocessing and encoding
 
 # %%
 # If preloaded file is not yet available:
-# epc_df = data_preprocessing.load_epc_samples(subset="5m", preload=True)
-# epc_df = data_preprocessing.preprocess_data(epc_df, encode_features=False)
+epc_df = data_preprocessing.load_epc_samples(subset="5m", preload=True)
+epc_df = data_preprocessing.preprocess_data(epc_df, encode_features=False)
 
 # %%
-# epc_df = pd.read_csv(data_preprocessing.SUPERVISED_MODEL_OUTPUT + "epc_df_5m_preprocessed.csv")
-# epc_df = data_preprocessing.encode_features_for_hp_status(epc_df)
-# epc_df.head()
+epc_df = pd.read_csv(
+    data_preprocessing.SUPERVISED_MODEL_OUTPUT + "epc_df_5m_preprocessed.csv"
+)
+
+epc_df = data_preprocessing.encode_features_for_hp_status(epc_df)
+epc_df.head()
 
 # %%
 epc_df = pd.read_csv(
@@ -78,7 +64,7 @@ epc_df.head()
 # ### Get training data and labels
 
 # %%
-version = "Future HP Status"
+version = "Current HP Status"
 
 # %%
 drop_features = [
@@ -103,7 +89,9 @@ prediction_pipeline.predict_heat_pump_adoption(X, y, version, save_predictions=T
 # ### Dimensionality Reduction and Feature Coefficients
 
 # %%
-X_scaled = prediction_pipeline.model_settings.prepr_pipeline_no_pca.fit_transform(X)
+X_scaled = prediction_pipeline.model_settings.prepr_pipeline_no_pca.fit_transform(
+    X.drop(columns=["training set"])
+)
 
 # Reduce dimensionality to level of 90% explained variance ratio
 X_dim_reduced = plotting_utils.dimensionality_reduction(
@@ -143,6 +131,7 @@ df["proba 1"].max()
 tar = "HP_ADDED"
 
 test = df.loc[df["training set"] == False]
+print("Test", test.shape)
 
 social = test["TENURE: rental (social)"] == True
 private = test["TENURE: rental (private)"] == True
@@ -154,13 +143,14 @@ false_negatives = (test[tar + ": prediction"] == False) & (test[tar] == True)
 true_positives = (test[tar + ": prediction"] == True) & (test[tar] == True)
 true_negatives = (test[tar + ": prediction"] == False) & (test[tar] == False)
 
-print(social.shape)
-print(private.shape)
-print(owner_occupied.shape)
+print(test[social].shape)
+print(test[private].shape)
+print(test[owner_occupied].shape)
 
 # %%
-test[true_positives & owner_occupied & high_conf_hp]
+test[true_positives & owner_occupied & high_conf_hp].shape
 
 # %%
+test[false_positives]
 
 # %%
